@@ -53,7 +53,7 @@ SOL = "So11111111111111111111111111111111111111112"
 SKIP_MINTS = {SOL, "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB"}
 
 # ---- Notion journal (optional) ----
-NOTION_TOKEN = os.getenv("NOTION_TOKEN")
+NOTION_TOKEN = (os.getenv("NOTION_TOKEN") or "").strip() or None
 DB_OPEN = os.getenv("NOTION_DB_OPEN", "32b8584b-2398-4b20-b92c-18a2dc1b05af")
 DB_CLOSED = os.getenv("NOTION_DB_CLOSED", "255f98ab-f760-447a-a453-8550f416baff")
 DB_EVENTS = os.getenv("NOTION_DB_EVENTS", "802d475b-a09c-4022-9a25-c609e9325cae")

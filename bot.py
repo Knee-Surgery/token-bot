@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("tokenbot")
 
 # ---------- config ----------
-BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"].strip()
 OWNER_ID = int(os.getenv("OWNER_CHAT_ID", "8643619357"))
 RPC_URL = os.getenv("RPC_URL", "https://api.mainnet-beta.solana.com")
 JUP_BASE = os.getenv("JUPITER_BASE", "https://lite-api.jup.ag/swap/v1")
