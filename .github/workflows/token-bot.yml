@@ -1,0 +1,44 @@
+name: token-bot
+on:
+  schedule:
+-
+  cron: */5 * * * *
+  workflow_dispatch: 
+concurrency:
+  group: token-bot
+  cancel-in-progress: false
+permissions:
+  contents: write
+jobs:
+  run:
+  runs-on: ubuntu-latest
+  timeout-minutes: 4
+  steps:
+-
+  uses: actions/checkout@v4
+-
+  uses: actions/setup-python@v5
+  with:
+    python-version: 3.12
+    cache: pip
+-
+  run: pip install -r requirements.txt
+-
+  name: Run one bot cycle
+  run: python run_once.py
+  env:
+    TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+    NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+    OWNER_CHAT_ID: 8643619357
+    DRY_RUN: true
+    AUTO_MODE: true
+    MIN_HOLDERS: 1000
+    MAX_TOP10_PCT: 20
+    AUTO_PAPER_START_SOL: 0.05
+-
+  name: Save state
+  if: always()
+  run: git config user.name "token-bot"
+git config user.email "token-bot@users.noreply.github.com"
+git add auto_state.json || true
+git diff --cached --quiet || (git commit -m "state" && git pull --rebase && git push)
