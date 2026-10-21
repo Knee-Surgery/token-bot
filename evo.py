@@ -9,8 +9,12 @@ Runs POP variants side by side on the same market data (paper only, USD bankroll
   - A variant that survives EVO_GRAD_TRADES trades is GRADUATED, then must pass a fresh EVO_VAL_TRADES-trade
     VALIDATION window it was never tuned on. Only then is it VALIDATED (a candidate, never auto-live).
 
-Hard rules that mutation can never cross: holders >= 1000, top-10 <= 20%, TP >= 5% (cost-adjusted $0.20 target),
-SL <= 1.5x TP (so the win rate can't be inflated with huge stops), per-trade net target >= $0.20.
+Starts from SIMPLE filters (momentum + volume + liquidity). Holder count, top-10 share and score are optional,
+evolvable filters (0 / 100 = off). Children also learn from data: thresholds drift toward what winning trades
+across ALL variants actually looked like (needs 20+ trades, 5+ wins).
+
+Hard rules that mutation can never cross: liquidity >= $10k, no RugCheck "danger" flags, TP >= 5% (cost-adjusted
+$0.20 target), SL <= 1.5x TP (so the win rate can't be inflated with huge stops), per-trade net target >= $0.20.
 Paper only. Paper fills are optimistic: live results will be worse.
 """
 import json, math, os, random, time, logging
@@ -39,13 +43,26 @@ CANDIDATE_LIMIT = int(os.getenv("EVO_CANDIDATE_LIMIT", "30"))
 COOLDOWN_MIN = 30
 ACACHE_TTL_MIN = 30
 
-BOUNDS = {"tp": (5, 15), "sl": (1.5, 8), "hold": (3, 60), "min_score": (55, 90), "min_m5": (0, 3),
-          "max_m5": (3, 15), "min_txns": (10, 200), "min_vol_h1": (20000, 500000),
-          "min_liq": (20000, 200000), "min_holders": (1000, 10000), "max_top10": (10, 20)}
+SCHEMA = 2  # bump to restart all variants from fresh seeds when the rules change
+BOUNDS = {"tp": (5, 15), "sl": (1.5, 8), "hold": (3, 60), "min_score": (0, 90), "min_m5": (0, 3),
+          "max_m5": (3, 20), "min_txns": (5, 200), "min_vol_h1": (5000, 500000),
+          "min_liq": (10000, 200000), "min_holders": (0, 10000), "max_top10": (10, 100)}
 INTS = {"hold", "min_score", "min_txns", "min_holders"}
 LOG_KEYS = {"min_vol_h1", "min_liq", "min_txns", "min_holders"}
 
-SEEDS = [
+SEEDS = [  # simple on purpose: a few filters each; evolution adds or drops conditions from here
+    {"tp": 5, "sl": 3, "hold": 8, "min_score": 0, "min_m5": 0.5, "max_m5": 8, "min_txns": 5,
+     "min_vol_h1": 5000, "min_liq": 15000, "min_holders": 0, "max_top10": 100},
+    {"tp": 6, "sl": 3, "hold": 10, "min_score": 0, "min_m5": 0.5, "max_m5": 8, "min_txns": 30,
+     "min_vol_h1": 100000, "min_liq": 15000, "min_holders": 0, "max_top10": 100},
+    {"tp": 5, "sl": 3, "hold": 8, "min_score": 0, "min_m5": 0.5, "max_m5": 8, "min_txns": 5,
+     "min_vol_h1": 5000, "min_liq": 15000, "min_holders": 300, "max_top10": 40},
+    {"tp": 5, "sl": 3, "hold": 8, "min_score": 0, "min_m5": 0.5, "max_m5": 8, "min_txns": 5,
+     "min_vol_h1": 5000, "min_liq": 50000, "min_holders": 0, "max_top10": 100},
+    {"tp": 5, "sl": 3, "hold": 8, "min_score": 60, "min_m5": 0, "max_m5": 10, "min_txns": 5,
+     "min_vol_h1": 5000, "min_liq": 15000, "min_holders": 0, "max_top10": 100},
+]
+_OLD_SEEDS = [
     {"tp": 5, "sl": 3, "hold": 8, "min_score": 65, "min_m5": 0.5, "max_m5": 6, "min_txns": 20,
      "min_vol_h1": 50000, "min_liq": 20000, "min_holders": 1000, "max_top10": 20},
     {"tp": 6, "sl": 3, "hold": 10, "min_score": 70, "min_m5": 0.5, "max_m5": 5, "min_txns": 40,
@@ -58,8 +75,13 @@ SEEDS = [
 # ---------- state ----------
 def load() -> dict:
     if STATE.exists():
-        return json.loads(STATE.read_text())
-    return {"variants": {}, "next_id": 1, "halted": False, "acache": {}, "tg_offset": None}
+        S = json.loads(STATE.read_text())
+        if S.get("schema") == SCHEMA:
+            return S
+        # rules changed: start variants fresh, keep pause flag and Telegram offset
+        return {"schema": SCHEMA, "variants": {}, "next_id": 1, "acache": {},
+                "halted": S.get("halted", False), "tg_offset": S.get("tg_offset")}
+    return {"schema": SCHEMA, "variants": {}, "next_id": 1, "halted": False, "acache": {}, "tg_offset": None}
 
 
 def save(S: dict):
@@ -98,8 +120,33 @@ def fitness(v: dict) -> float:
     return sum(t["pnl_pct"] for t in c) / len(c) + 5 * wr
 
 
-def mutate(parent: dict):
+def learn_targets(S: dict) -> dict:
+    """What did winning trades look like across every variant? Returns suggested thresholds."""
+    trades = [t for v in S["variants"].values() for t in v["closed"] if t.get("feat")]
+    wins = [t["feat"] for t in trades if t["win"]]
+    if len(trades) < 20 or len(wins) < 5:
+        return {}
+
+    def pct(vals, q):
+        vals = sorted(vals)
+        return vals[int(q * (len(vals) - 1))]
+
+    out = {}
+    for gene, feat, q in (("min_m5", "m5", 0.2), ("min_txns", "txns", 0.2), ("min_vol_h1", "vol_h1", 0.2),
+                          ("min_liq", "liq", 0.2), ("min_score", "score", 0.2), ("min_holders", "holders", 0.2),
+                          ("max_m5", "m5", 0.8), ("max_top10", "top10", 0.8)):
+        vals = [w[feat] for w in wins if w.get(feat) is not None]
+        if len(vals) >= 5:
+            out[gene] = pct(vals, q)
+    return out
+
+
+def mutate(parent: dict, S: dict):
     gn, notes = dict(parent["genome"]), []
+    for gene, target in learn_targets(S).items():
+        if random.random() < 0.5:
+            gn[gene] = 0.5 * float(gn[gene]) + 0.5 * float(target)
+            notes.append(f"{gene} moved toward what winning trades had")
     losses = [t for t in parent["closed"] if not t["win"]]
     if losses:
         top, _ = Counter(t["why"] for t in losses).most_common(1)[0]
@@ -136,7 +183,7 @@ def spawn(S) -> tuple[dict, str]:
     pool = [x for x in S["variants"].values() if len(x["closed"]) >= 5]
     if pool and random.random() > 0.25:
         parent = max(pool, key=fitness)
-        gn, notes = mutate(parent)
+        gn, notes = mutate(parent, S)
         v = new_variant(S, gn, parent["gen"] + 1, parent["id"], notes)
         return v, f"{v['id']} gen{v['gen']} from {parent['id']}: " + "; ".join(notes)
     v = new_variant(S, random_genome(), 0, None, ["random exploration"])
@@ -220,6 +267,16 @@ def entry_ok(p: dict, gn: dict) -> bool:
             and buys > sells and vol >= gn["min_vol_h1"] and liq >= gn["min_liq"])
 
 
+def features(p: dict, a: dict) -> dict:
+    ch = p.get("priceChange") or {}
+    tx = (p.get("txns") or {}).get("m5") or {}
+    return {"m5": ch.get("m5") or 0, "h1": ch.get("h1") or 0,
+            "liq": (p.get("liquidity") or {}).get("usd", 0) or 0,
+            "vol_h1": (p.get("volume") or {}).get("h1", 0) or 0,
+            "txns": tx.get("buys", 0) + tx.get("sells", 0),
+            "holders": a.get("holders"), "top10": a.get("top10"), "score": a.get("score")}
+
+
 # ---------- jobs ----------
 async def monitor(g, S, pc, events, notes_out):
     for v in list(S["variants"].values()):
@@ -252,7 +309,7 @@ async def monitor(g, S, pc, events, notes_out):
                 now = time.time()
                 v["paper_usd"] += pnl_usd
                 v["closed"].append({"mint": mint, "pnl_pct": net, "pnl_usd": pnl_usd, "win": net > 0,
-                                    "why": why, "ts": now})
+                                    "why": why, "ts": now, "feat": pos.get("feat")})
                 del v["positions"][mint]
                 cum = sum(t["pnl_usd"] for t in v["closed"])
                 result = "Win" if net > 0 else "Loss" if net < 0 else "Breakeven"
@@ -319,15 +376,20 @@ async def scan(g, S, pc, events):
                 log.warning("analyze %s: %s", mint, e)
                 continue
             a = {k: full.get(k) for k in ("score", "liq", "holders", "top10", "symbol")}
+            a["danger"] = any("[danger]" in f for f in (full.get("flags") or []))
             S["acache"][mint] = {"ts": now, "a": a}
-        if a.get("holders") is None or a.get("top10") is None:
-            continue
+        if a.get("danger"):
+            continue  # hard safety floor: RugCheck danger-level risk
 
         price = float(p["priceUsd"])
         liq = float((p.get("liquidity") or {}).get("usd", 0))
         for v in wanting:
             gn = v["genome"]
-            if a["score"] < gn["min_score"] or a["holders"] < gn["min_holders"] or a["top10"] > gn["max_top10"]:
+            if a["score"] < gn["min_score"]:
+                continue
+            if gn["min_holders"] > 0 and (a["holders"] is None or a["holders"] < gn["min_holders"]):
+                continue
+            if gn["max_top10"] < 100 and (a["top10"] is None or a["top10"] > gn["max_top10"]):
                 continue
             need_usd = TARGET_USD / ((gn["tp"] - COST_PCT) / 100)
             size_usd = min(need_usd, v["paper_usd"] * BANKROLL_FRAC)
@@ -353,7 +415,8 @@ async def scan(g, S, pc, events):
             v["positions"][mint] = {"name": name, "entry_price": price, "entry_liq": liq, "ts": ts,
                                     "cost_usd": size_usd, "size_tokens": size_tokens, "score": a["score"],
                                     "holders": a["holders"], "top10": a["top10"], "tp": gn["tp"],
-                                    "sl": gn["sl"], "hold": gn["hold"], "page_id": page_id}
+                                    "sl": gn["sl"], "hold": gn["hold"], "page_id": page_id,
+                                    "feat": features(p, a)}
             v["cooldown"][mint] = ts
             free.remove(v)
             if NOTIFY_TRADES:

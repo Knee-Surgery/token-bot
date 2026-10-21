@@ -75,7 +75,8 @@ async def screen(g, S, key):
         return "CANDIDATES\n\nNo variant has passed 30 trades yet.\n\nClosest right now:\n" + ("\n".join(lines) or "none")
     if key == "rules":
         return ("RULES (cannot be changed by the bot)\n\n"
-                "• Paper trading only\n• 1,000+ holders\n• Top 10 holders 20% or less\n"
+                "• Paper trading only\n• Liquidity at least $10k, no RugCheck danger flags\n"
+                "• Holder count, top-10 share and score limits are evolved, not fixed\n"
                 f"• Each winning trade targets ${evo.TARGET_USD:.2f}+ net\n• Take-profit 5% or more, stop-loss at most 1.5x take-profit\n"
                 f"• Retire a variant after {evo.EVAL_AFTER} trades if win rate < {evo.TARGET_WR:.0%} or PnL < 0\n"
                 f"• Survive {evo.GRAD_TRADES} trades, then {evo.VAL_TRADES} fresh validation trades\n"
