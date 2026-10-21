@@ -1,4 +1,5 @@
 {
+ "schema": 2,
  "variants": {
   "v1": {
    "id": "v1",
@@ -8,14 +9,14 @@
     "tp": 5,
     "sl": 3.0,
     "hold": 8,
-    "min_score": 65,
+    "min_score": 0,
     "min_m5": 0.5,
-    "max_m5": 6.0,
-    "min_txns": 20,
-    "min_vol_h1": 50000.0,
-    "min_liq": 20000,
-    "min_holders": 1000,
-    "max_top10": 20
+    "max_m5": 8.0,
+    "min_txns": 5,
+    "min_vol_h1": 5000,
+    "min_liq": 15000.0,
+    "min_holders": 0,
+    "max_top10": 100
    },
    "notes": [
     "seed"
@@ -24,10 +25,38 @@
    "reason": "",
    "paper_usd": 10.0,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
+     "name": "DACITY",
+     "entry_price": 0.01396,
+     "entry_liq": 872719.71,
+     "ts": 1792611238.2378163,
+     "cost_usd": 8.0,
+     "size_tokens": 573.0659025787966,
+     "score": 60,
+     "holders": 36885,
+     "top10": 18.18,
+     "tp": 5,
+     "sl": 3.0,
+     "hold": 8,
+     "page_id": "40093233-c104-81ad-b2e2-fd41eb0e70ca",
+     "feat": {
+      "m5": 3.06,
+      "h1": 5.28,
+      "liq": 872719.71,
+      "vol_h1": 108156.43,
+      "txns": 42,
+      "holders": 36885,
+      "top10": 18.18,
+      "score": 60
+     }
+    }
+   },
    "closed": [],
-   "cooldown": {},
-   "created": 1792609501.8416197,
+   "cooldown": {
+    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611238.2378163
+   },
+   "created": 1792611233.4708881,
    "val_start": 0
   },
   "v2": {
@@ -38,14 +67,14 @@
     "tp": 6.0,
     "sl": 3.0,
     "hold": 10,
-    "min_score": 70,
+    "min_score": 0,
     "min_m5": 0.5,
-    "max_m5": 5.0,
-    "min_txns": 40,
+    "max_m5": 8.0,
+    "min_txns": 30,
     "min_vol_h1": 100000.0,
-    "min_liq": 40000.0,
-    "min_holders": 1500,
-    "max_top10": 18.0
+    "min_liq": 15000.0,
+    "min_holders": 0,
+    "max_top10": 100
    },
    "notes": [
     "seed"
@@ -54,10 +83,38 @@
    "reason": "",
    "paper_usd": 10.0,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
+     "name": "DACITY",
+     "entry_price": 0.01396,
+     "entry_liq": 872719.71,
+     "ts": 1792611236.1713085,
+     "cost_usd": 5.714285714285714,
+     "size_tokens": 409.3327875562833,
+     "score": 60,
+     "holders": 36885,
+     "top10": 18.18,
+     "tp": 6.0,
+     "sl": 3.0,
+     "hold": 10,
+     "page_id": "40093233-c104-816d-a86c-c76b0b7d9592",
+     "feat": {
+      "m5": 3.06,
+      "h1": 5.28,
+      "liq": 872719.71,
+      "vol_h1": 108156.43,
+      "txns": 42,
+      "holders": 36885,
+      "top10": 18.18,
+      "score": 60
+     }
+    }
+   },
    "closed": [],
-   "cooldown": {},
-   "created": 1792609501.8416536,
+   "cooldown": {
+    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611236.1713085
+   },
+   "created": 1792611233.4709148,
    "val_start": 0
   },
   "v3": {
@@ -66,16 +123,16 @@
    "parent": null,
    "genome": {
     "tp": 5,
-    "sl": 2.5,
-    "hold": 6,
-    "min_score": 70,
-    "min_m5": 1.0,
-    "max_m5": 6.0,
-    "min_txns": 30,
-    "min_vol_h1": 80000.0,
-    "min_liq": 30000.0,
-    "min_holders": 1000,
-    "max_top10": 20
+    "sl": 3.0,
+    "hold": 8,
+    "min_score": 0,
+    "min_m5": 0.5,
+    "max_m5": 8.0,
+    "min_txns": 5,
+    "min_vol_h1": 5000,
+    "min_liq": 15000.0,
+    "min_holders": 300,
+    "max_top10": 40.0
    },
    "notes": [
     "seed"
@@ -84,10 +141,38 @@
    "reason": "",
    "paper_usd": 10.0,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
+     "name": "DACITY",
+     "entry_price": 0.01396,
+     "entry_liq": 872719.71,
+     "ts": 1792611236.98845,
+     "cost_usd": 8.0,
+     "size_tokens": 573.0659025787966,
+     "score": 60,
+     "holders": 36885,
+     "top10": 18.18,
+     "tp": 5,
+     "sl": 3.0,
+     "hold": 8,
+     "page_id": "40093233-c104-81e6-b56f-d2e86410a7dc",
+     "feat": {
+      "m5": 3.06,
+      "h1": 5.28,
+      "liq": 872719.71,
+      "vol_h1": 108156.43,
+      "txns": 42,
+      "holders": 36885,
+      "top10": 18.18,
+      "score": 60
+     }
+    }
+   },
    "closed": [],
-   "cooldown": {},
-   "created": 1792609501.8416748,
+   "cooldown": {
+    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611236.98845
+   },
+   "created": 1792611233.4709313,
    "val_start": 0
   },
   "v4": {
@@ -95,29 +180,57 @@
    "gen": 0,
    "parent": null,
    "genome": {
-    "tp": 8.55,
-    "sl": 7.33,
-    "hold": 38,
-    "min_score": 85,
-    "min_m5": 2.51,
-    "max_m5": 9.63,
-    "min_txns": 30,
-    "min_vol_h1": 52803.31,
-    "min_liq": 24294.78,
-    "min_holders": 5249,
-    "max_top10": 16.26
+    "tp": 5,
+    "sl": 3.0,
+    "hold": 8,
+    "min_score": 0,
+    "min_m5": 0.5,
+    "max_m5": 8.0,
+    "min_txns": 5,
+    "min_vol_h1": 5000,
+    "min_liq": 50000.0,
+    "min_holders": 0,
+    "max_top10": 100
    },
    "notes": [
-    "random exploration"
+    "seed"
    ],
    "status": "testing",
    "reason": "",
    "paper_usd": 10.0,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
+     "name": "DACITY",
+     "entry_price": 0.01396,
+     "entry_liq": 872719.71,
+     "ts": 1792611237.660689,
+     "cost_usd": 8.0,
+     "size_tokens": 573.0659025787966,
+     "score": 60,
+     "holders": 36885,
+     "top10": 18.18,
+     "tp": 5,
+     "sl": 3.0,
+     "hold": 8,
+     "page_id": "40093233-c104-813f-9787-d77073f92cb8",
+     "feat": {
+      "m5": 3.06,
+      "h1": 5.28,
+      "liq": 872719.71,
+      "vol_h1": 108156.43,
+      "txns": 42,
+      "holders": 36885,
+      "top10": 18.18,
+      "score": 60
+     }
+    }
+   },
    "closed": [],
-   "cooldown": {},
-   "created": 1792609501.8417141,
+   "cooldown": {
+    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611237.660689
+   },
+   "created": 1792611233.4709442,
    "val_start": 0
   },
   "v5": {
@@ -125,29 +238,57 @@
    "gen": 0,
    "parent": null,
    "genome": {
-    "tp": 14.82,
-    "sl": 3.04,
-    "hold": 30,
-    "min_score": 73,
-    "min_m5": 2.21,
-    "max_m5": 3.56,
-    "min_txns": 28,
-    "min_vol_h1": 45708.69,
-    "min_liq": 79340.48,
-    "min_holders": 7565,
-    "max_top10": 15.38
+    "tp": 5,
+    "sl": 3.0,
+    "hold": 8,
+    "min_score": 60,
+    "min_m5": 0,
+    "max_m5": 10.0,
+    "min_txns": 5,
+    "min_vol_h1": 5000,
+    "min_liq": 15000.0,
+    "min_holders": 0,
+    "max_top10": 100
    },
    "notes": [
-    "random exploration"
+    "seed"
    ],
    "status": "testing",
    "reason": "",
    "paper_usd": 10.0,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
+     "name": "DACITY",
+     "entry_price": 0.01396,
+     "entry_liq": 872719.71,
+     "ts": 1792611239.0609167,
+     "cost_usd": 8.0,
+     "size_tokens": 573.0659025787966,
+     "score": 60,
+     "holders": 36885,
+     "top10": 18.18,
+     "tp": 5,
+     "sl": 3.0,
+     "hold": 8,
+     "page_id": "40093233-c104-81f0-aa4f-e5b215848fc6",
+     "feat": {
+      "m5": 3.06,
+      "h1": 5.28,
+      "liq": 872719.71,
+      "vol_h1": 108156.43,
+      "txns": 42,
+      "holders": 36885,
+      "top10": 18.18,
+      "score": 60
+     }
+    }
+   },
    "closed": [],
-   "cooldown": {},
-   "created": 1792609501.8417485,
+   "cooldown": {
+    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611239.0609167
+   },
+   "created": 1792611233.4709556,
    "val_start": 0
   },
   "v6": {
@@ -155,17 +296,17 @@
    "gen": 0,
    "parent": null,
    "genome": {
-    "tp": 11.03,
-    "sl": 4.8,
-    "hold": 40,
-    "min_score": 85,
-    "min_m5": 1.85,
-    "max_m5": 3.2,
-    "min_txns": 151,
-    "min_vol_h1": 272715.89,
-    "min_liq": 116690.02,
-    "min_holders": 3798,
-    "max_top10": 16.19
+    "tp": 14.61,
+    "sl": 2.38,
+    "hold": 33,
+    "min_score": 33,
+    "min_m5": 1.19,
+    "max_m5": 14.46,
+    "min_txns": 6,
+    "min_vol_h1": 255742.17,
+    "min_liq": 46776.2,
+    "min_holders": 39,
+    "max_top10": 88.66
    },
    "notes": [
     "random exploration"
@@ -177,41 +318,21 @@
    "positions": {},
    "closed": [],
    "cooldown": {},
-   "created": 1792609501.8417735,
+   "created": 1792611233.4709876,
    "val_start": 0
   }
  },
  "next_id": 7,
- "halted": false,
  "acache": {
-  "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump": {
-   "ts": 1792609501.842115,
+  "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
+   "ts": 1792611234.5918148,
    "a": {
-    "score": 15,
-    "liq": 68332.44,
-    "holders": 10424,
-    "top10": 19.57,
-    "symbol": "PHP"
-   }
-  },
-  "DvdmEnztCmXwBnAbedD48XVGZJSxq31zNvnyftXdpump": {
-   "ts": 1792609687.7211185,
-   "a": {
-    "score": 50,
-    "liq": 279018.3,
-    "holders": 32525,
-    "top10": 19.23,
-    "symbol": "pill"
-   }
-  },
-  "D42TjMjz5H7toPu5md5KBXreZkCSdZMEfLQwmBhJXvb1": {
-   "ts": 1792609687.7211185,
-   "a": {
-    "score": 20,
-    "liq": 76164.59,
-    "holders": 24721,
-    "top10": 20.3,
-    "symbol": "Pok\u00e9mon"
+    "score": 60,
+    "liq": 872719.71,
+    "holders": 36885,
+    "top10": 18.18,
+    "symbol": "Dacity",
+    "danger": false
    }
   },
   "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
@@ -225,6 +346,7 @@
    }
   }
  },
- "tg_offset": 872774944,
+ "halted": false,
+ "tg_offset": 872774947,
  "await": null
 }
