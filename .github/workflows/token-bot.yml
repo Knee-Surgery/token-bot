@@ -15,7 +15,7 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 7
     steps:
       - uses: actions/checkout@v4
 
@@ -26,7 +26,7 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Run one bot cycle
+      - name: Run bot cycle (about 4 minutes)
         run: python run_once.py
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -34,9 +34,12 @@ jobs:
           OWNER_CHAT_ID: "8643619357"
           DRY_RUN: "true"
           AUTO_MODE: "true"
+          AUTO_SCALP: "true"
+          LOOP_SECONDS: "240"
           MIN_HOLDERS: "1000"
           MAX_TOP10_PCT: "20"
           AUTO_PAPER_START_SOL: "0.05"
+          SCALP_TARGET_USD: "0.20"
 
       - name: Save state
         if: always()
