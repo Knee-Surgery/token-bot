@@ -1,0 +1,219 @@
+{
+ "variants": {
+  "v1": {
+   "id": "v1",
+   "gen": 0,
+   "parent": null,
+   "genome": {
+    "tp": 5,
+    "sl": 3.0,
+    "hold": 8,
+    "min_score": 65,
+    "min_m5": 0.5,
+    "max_m5": 6.0,
+    "min_txns": 20,
+    "min_vol_h1": 50000.0,
+    "min_liq": 20000,
+    "min_holders": 1000,
+    "max_top10": 20
+   },
+   "notes": [
+    "seed"
+   ],
+   "status": "testing",
+   "reason": "",
+   "paper_usd": 10.0,
+   "start_usd": 10.0,
+   "positions": {},
+   "closed": [],
+   "cooldown": {},
+   "created": 1792609501.8416197,
+   "val_start": 0
+  },
+  "v2": {
+   "id": "v2",
+   "gen": 0,
+   "parent": null,
+   "genome": {
+    "tp": 6.0,
+    "sl": 3.0,
+    "hold": 10,
+    "min_score": 70,
+    "min_m5": 0.5,
+    "max_m5": 5.0,
+    "min_txns": 40,
+    "min_vol_h1": 100000.0,
+    "min_liq": 40000.0,
+    "min_holders": 1500,
+    "max_top10": 18.0
+   },
+   "notes": [
+    "seed"
+   ],
+   "status": "testing",
+   "reason": "",
+   "paper_usd": 10.0,
+   "start_usd": 10.0,
+   "positions": {},
+   "closed": [],
+   "cooldown": {},
+   "created": 1792609501.8416536,
+   "val_start": 0
+  },
+  "v3": {
+   "id": "v3",
+   "gen": 0,
+   "parent": null,
+   "genome": {
+    "tp": 5,
+    "sl": 2.5,
+    "hold": 6,
+    "min_score": 70,
+    "min_m5": 1.0,
+    "max_m5": 6.0,
+    "min_txns": 30,
+    "min_vol_h1": 80000.0,
+    "min_liq": 30000.0,
+    "min_holders": 1000,
+    "max_top10": 20
+   },
+   "notes": [
+    "seed"
+   ],
+   "status": "testing",
+   "reason": "",
+   "paper_usd": 10.0,
+   "start_usd": 10.0,
+   "positions": {},
+   "closed": [],
+   "cooldown": {},
+   "created": 1792609501.8416748,
+   "val_start": 0
+  },
+  "v4": {
+   "id": "v4",
+   "gen": 0,
+   "parent": null,
+   "genome": {
+    "tp": 8.55,
+    "sl": 7.33,
+    "hold": 38,
+    "min_score": 85,
+    "min_m5": 2.51,
+    "max_m5": 9.63,
+    "min_txns": 30,
+    "min_vol_h1": 52803.31,
+    "min_liq": 24294.78,
+    "min_holders": 5249,
+    "max_top10": 16.26
+   },
+   "notes": [
+    "random exploration"
+   ],
+   "status": "testing",
+   "reason": "",
+   "paper_usd": 10.0,
+   "start_usd": 10.0,
+   "positions": {},
+   "closed": [],
+   "cooldown": {},
+   "created": 1792609501.8417141,
+   "val_start": 0
+  },
+  "v5": {
+   "id": "v5",
+   "gen": 0,
+   "parent": null,
+   "genome": {
+    "tp": 14.82,
+    "sl": 3.04,
+    "hold": 30,
+    "min_score": 73,
+    "min_m5": 2.21,
+    "max_m5": 3.56,
+    "min_txns": 28,
+    "min_vol_h1": 45708.69,
+    "min_liq": 79340.48,
+    "min_holders": 7565,
+    "max_top10": 15.38
+   },
+   "notes": [
+    "random exploration"
+   ],
+   "status": "testing",
+   "reason": "",
+   "paper_usd": 10.0,
+   "start_usd": 10.0,
+   "positions": {},
+   "closed": [],
+   "cooldown": {},
+   "created": 1792609501.8417485,
+   "val_start": 0
+  },
+  "v6": {
+   "id": "v6",
+   "gen": 0,
+   "parent": null,
+   "genome": {
+    "tp": 11.03,
+    "sl": 4.8,
+    "hold": 40,
+    "min_score": 85,
+    "min_m5": 1.85,
+    "max_m5": 3.2,
+    "min_txns": 151,
+    "min_vol_h1": 272715.89,
+    "min_liq": 116690.02,
+    "min_holders": 3798,
+    "max_top10": 16.19
+   },
+   "notes": [
+    "random exploration"
+   ],
+   "status": "testing",
+   "reason": "",
+   "paper_usd": 10.0,
+   "start_usd": 10.0,
+   "positions": {},
+   "closed": [],
+   "cooldown": {},
+   "created": 1792609501.8417735,
+   "val_start": 0
+  }
+ },
+ "next_id": 7,
+ "halted": false,
+ "acache": {
+  "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump": {
+   "ts": 1792609501.842115,
+   "a": {
+    "score": 15,
+    "liq": 68332.44,
+    "holders": 10424,
+    "top10": 19.57,
+    "symbol": "PHP"
+   }
+  },
+  "DvdmEnztCmXwBnAbedD48XVGZJSxq31zNvnyftXdpump": {
+   "ts": 1792609687.7211185,
+   "a": {
+    "score": 50,
+    "liq": 279018.3,
+    "holders": 32525,
+    "top10": 19.23,
+    "symbol": "pill"
+   }
+  },
+  "D42TjMjz5H7toPu5md5KBXreZkCSdZMEfLQwmBhJXvb1": {
+   "ts": 1792609687.7211185,
+   "a": {
+    "score": 20,
+    "liq": 76164.59,
+    "holders": 24721,
+    "top10": 20.3,
+    "symbol": "Pok\u00e9mon"
+   }
+  }
+ },
+ "tg_offset": null
+}
