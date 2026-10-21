@@ -419,21 +419,23 @@ async def run(tb, g, loop_seconds: int):
     ensure_population(S, events)
     pc: dict = {}
     start = time.time()
-    last_scan = last_cmd = 0.0
+    last_scan = last_cmd = last_mon = 0.0
+    import menu  # lazy import: menu.py imports this module
     while True:
         now = time.time()
         try:
-            if now - last_cmd >= 60:
-                await handle_commands(tb, g, S); last_cmd = now
-            await monitor(g, S, pc, events, None)
+            if now - last_cmd >= 10:
+                await menu.handle(tb, g, S); last_cmd = now
+            if now - last_mon >= 20:
+                await monitor(g, S, pc, events, None); last_mon = now
             if now - last_scan >= 60:
                 await scan(g, S, pc, events); last_scan = now
             save(S)
             await flush(tb, g, events)
         except Exception as e:
             log.exception("cycle error: %s", e)
-        if time.time() - start + 20 >= loop_seconds:
+        if time.time() - start + 10 >= loop_seconds:
             break
         import asyncio
-        await asyncio.sleep(20)
+        await asyncio.sleep(10)
     save(S)
