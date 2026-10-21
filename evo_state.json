@@ -213,6 +213,16 @@
     "top10": 20.3,
     "symbol": "Pok\u00e9mon"
    }
+  },
+  "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
+   "ts": 1792611126.9060614,
+   "a": {
+    "score": 60,
+    "liq": 891402.82,
+    "holders": 36862,
+    "top10": 18.18,
+    "symbol": "Dacity"
+   }
   }
  },
  "tg_offset": 872774944,
