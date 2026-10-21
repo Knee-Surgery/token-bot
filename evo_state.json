@@ -23,23 +23,17 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 8.103724928366763,
    "start_usd": 10.0,
-   "positions": {
-    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
-     "name": "DACITY",
-     "entry_price": 0.01396,
-     "entry_liq": 872719.71,
-     "ts": 1792611238.2378163,
-     "cost_usd": 8.0,
-     "size_tokens": 573.0659025787966,
-     "score": 60,
-     "holders": 36885,
-     "top10": 18.18,
-     "tp": 5,
-     "sl": 3.0,
-     "hold": 8,
-     "page_id": "40093233-c104-81ad-b2e2-fd41eb0e70ca",
+   "positions": {},
+   "closed": [
+    {
+     "mint": "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump",
+     "pnl_pct": -23.703438395415475,
+     "pnl_usd": -1.896275071633238,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792622301.2948213,
      "feat": {
       "m5": 3.06,
       "h1": 5.28,
@@ -51,8 +45,7 @@
       "score": 60
      }
     }
-   },
-   "closed": [],
+   ],
    "cooldown": {
     "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611238.2378163
    },
@@ -81,23 +74,17 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 8.645517805976258,
    "start_usd": 10.0,
-   "positions": {
-    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
-     "name": "DACITY",
-     "entry_price": 0.01396,
-     "entry_liq": 872719.71,
-     "ts": 1792611236.1713085,
-     "cost_usd": 5.714285714285714,
-     "size_tokens": 409.3327875562833,
-     "score": 60,
-     "holders": 36885,
-     "top10": 18.18,
-     "tp": 6.0,
-     "sl": 3.0,
-     "hold": 10,
-     "page_id": "40093233-c104-816d-a86c-c76b0b7d9592",
+   "positions": {},
+   "closed": [
+    {
+     "mint": "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump",
+     "pnl_pct": -23.703438395415475,
+     "pnl_usd": -1.3544821940237415,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792622302.2008903,
      "feat": {
       "m5": 3.06,
       "h1": 5.28,
@@ -109,8 +96,7 @@
       "score": 60
      }
     }
-   },
-   "closed": [],
+   ],
    "cooldown": {
     "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611236.1713085
    },
@@ -139,23 +125,17 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 8.103724928366763,
    "start_usd": 10.0,
-   "positions": {
-    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
-     "name": "DACITY",
-     "entry_price": 0.01396,
-     "entry_liq": 872719.71,
-     "ts": 1792611236.98845,
-     "cost_usd": 8.0,
-     "size_tokens": 573.0659025787966,
-     "score": 60,
-     "holders": 36885,
-     "top10": 18.18,
-     "tp": 5,
-     "sl": 3.0,
-     "hold": 8,
-     "page_id": "40093233-c104-81e6-b56f-d2e86410a7dc",
+   "positions": {},
+   "closed": [
+    {
+     "mint": "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump",
+     "pnl_pct": -23.703438395415475,
+     "pnl_usd": -1.896275071633238,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792622303.0153987,
      "feat": {
       "m5": 3.06,
       "h1": 5.28,
@@ -167,8 +147,7 @@
       "score": 60
      }
     }
-   },
-   "closed": [],
+   ],
    "cooldown": {
     "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611236.98845
    },
@@ -197,23 +176,17 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 8.103724928366763,
    "start_usd": 10.0,
-   "positions": {
-    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
-     "name": "DACITY",
-     "entry_price": 0.01396,
-     "entry_liq": 872719.71,
-     "ts": 1792611237.660689,
-     "cost_usd": 8.0,
-     "size_tokens": 573.0659025787966,
-     "score": 60,
-     "holders": 36885,
-     "top10": 18.18,
-     "tp": 5,
-     "sl": 3.0,
-     "hold": 8,
-     "page_id": "40093233-c104-813f-9787-d77073f92cb8",
+   "positions": {},
+   "closed": [
+    {
+     "mint": "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump",
+     "pnl_pct": -23.703438395415475,
+     "pnl_usd": -1.896275071633238,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792622303.8175712,
      "feat": {
       "m5": 3.06,
       "h1": 5.28,
@@ -225,8 +198,7 @@
       "score": 60
      }
     }
-   },
-   "closed": [],
+   ],
    "cooldown": {
     "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611237.660689
    },
@@ -255,23 +227,17 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 8.103724928366763,
    "start_usd": 10.0,
-   "positions": {
-    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
-     "name": "DACITY",
-     "entry_price": 0.01396,
-     "entry_liq": 872719.71,
-     "ts": 1792611239.0609167,
-     "cost_usd": 8.0,
-     "size_tokens": 573.0659025787966,
-     "score": 60,
-     "holders": 36885,
-     "top10": 18.18,
-     "tp": 5,
-     "sl": 3.0,
-     "hold": 8,
-     "page_id": "40093233-c104-81f0-aa4f-e5b215848fc6",
+   "positions": {},
+   "closed": [
+    {
+     "mint": "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump",
+     "pnl_pct": -23.703438395415475,
+     "pnl_usd": -1.896275071633238,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792622304.8254375,
      "feat": {
       "m5": 3.06,
       "h1": 5.28,
@@ -283,8 +249,7 @@
       "score": 60
      }
     }
-   },
-   "closed": [],
+   ],
    "cooldown": {
     "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611239.0609167
    },
@@ -325,17 +290,6 @@
  "next_id": 7,
  "acache": {
   "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
-   "ts": 1792611234.5918148,
-   "a": {
-    "score": 60,
-    "liq": 872719.71,
-    "holders": 36885,
-    "top10": 18.18,
-    "symbol": "Dacity",
-    "danger": false
-   }
-  },
-  "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
    "ts": 1792611126.9060614,
    "a": {
     "score": 60,
@@ -343,6 +297,50 @@
     "holders": 36862,
     "top10": 18.18,
     "symbol": "Dacity"
+   }
+  },
+  "CSocnzcRpgSCr1naKcNTieWZUxb6rABe45j844m7pump": {
+   "ts": 1792622305.5823212,
+   "a": {
+    "score": 0,
+    "liq": 560776.69,
+    "holders": 55352,
+    "top10": 78.18,
+    "symbol": "Kimchi",
+    "danger": true
+   }
+  },
+  "DGNE5ZJfVRDysfrHetZXPdjWP3boHxRmGpTQ2JxSPpPE": {
+   "ts": 1792622305.5823212,
+   "a": {
+    "score": 15,
+    "liq": 394179.52,
+    "holders": 2112,
+    "top10": 80.97,
+    "symbol": "SO",
+    "danger": true
+   }
+  },
+  "AVTTVLHVtDdHbGcZ9ki6LRBLjGJQEqHH6eq1CRCkFX1U": {
+   "ts": 1792622305.5823212,
+   "a": {
+    "score": 15,
+    "liq": 313204.28,
+    "holders": 2114,
+    "top10": 81.25,
+    "symbol": "ALLOX",
+    "danger": true
+   }
+  },
+  "CARDSccUMFKoPRZxt5vt3ksUbxEFEcnZ3H2pd3dKxYjp": {
+   "ts": 1792622371.2224836,
+   "a": {
+    "score": 25,
+    "liq": 4725096.13,
+    "holders": 223566,
+    "top10": 72.53,
+    "symbol": "CARDS",
+    "danger": true
    }
   }
  },
