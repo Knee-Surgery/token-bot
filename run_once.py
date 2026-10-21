@@ -1,18 +1,25 @@
 """
-Single-cycle runner for GitHub Actions (no server needed).
-Each run: handle Telegram commands -> manage open positions -> scan for new entries -> exit.
+Runner for GitHub Actions (no server needed).
+Each workflow run stays alive for LOOP_SECONDS (default 240) and cycles:
+  every 20s: manage open positions   |   every 60s: scan for entries + read Telegram commands
 State lives in auto_state.json, which the workflow commits back to the repo.
-Paper mode only unless ALLOW_LIVE_ACTIONS=true (not recommended: Actions can't enforce per-day limits across runs).
+Paper mode only unless ALLOW_LIVE_ACTIONS=true (not recommended).
 """
-import asyncio, os
+import asyncio, os, time
 
 os.environ.setdefault("AUTO_MODE", "true")
 
 import bot, auto
 from telegram import Bot
 
+LOOP_SECONDS = int(os.getenv("LOOP_SECONDS", "240"))
+MONITOR_EVERY = 20
+SCAN_EVERY = 60
+CMD_EVERY = 60
 
-async def handle_commands(tb: Bot, s: dict):
+
+async def handle_commands(tb: Bot):
+    s = auto.load()
     try:
         updates = await tb.get_updates(offset=s.get("tg_offset"), timeout=0, allowed_updates=["message"])
     except Exception as e:
@@ -35,15 +42,14 @@ async def handle_commands(tb: Bot, s: dict):
                 await tb.send_message(bot.OWNER_ID,
                     f"{'HALTED: ' + s['reason'] if s['halted'] else 'Running'} "
                     f"({'PAPER' if bot.DRY_RUN else 'LIVE'})\n"
-                    f"Closed: {n}, win rate {wr}, net PnL {pnl:+.4f} SOL\n"
+                    f"Closed: {n}, win rate {wr}, net PnL {pnl:+.4f} SOL\n{auto.breakdown(s)}\n"
                     f"Open: {len(s['positions'])}  Paper bankroll: {s['paper_sol']:.4f} SOL\n"
                     f"Halts if win rate < {auto.TARGET_WR:.0%} or net PnL < 0 after {auto.EVAL_AFTER} trades.")
             elif cmd == "/analyze" and len(parts) > 1:
                 a = await bot.analyze(parts[1])
                 await tb.send_message(bot.OWNER_ID, bot.fmt_analysis(a))
             elif cmd in ("/start", "/help"):
-                await tb.send_message(bot.OWNER_ID,
-                    "Commands: /autostatus, /halt, /analyze <mint>\nReplies can lag up to ~5-10 minutes.")
+                await tb.send_message(bot.OWNER_ID, "Commands: /autostatus, /halt, /analyze <mint>")
         except Exception as e:
             print("command failed:", e)
     auto.save(s)
@@ -57,11 +63,22 @@ async def main():
     class App:  # minimal shim: auto.py only needs app.bot.send_message
         bot = tb
 
-    s = auto.load()
-    await handle_commands(tb, s)
     g = vars(bot)
-    await auto.monitor(App, g)
-    await auto.scan(App, g)
+    start = time.time()
+    last_scan = last_cmd = 0.0
+    while True:
+        now = time.time()
+        try:
+            if now - last_cmd >= CMD_EVERY:
+                await handle_commands(tb); last_cmd = now
+            await auto.monitor(App, g)
+            if now - last_scan >= SCAN_EVERY:
+                await auto.scan(App, g); last_scan = now
+        except Exception as e:
+            print("cycle error:", e)
+        if time.time() - start + MONITOR_EVERY >= LOOP_SECONDS:
+            break
+        await asyncio.sleep(MONITOR_EVERY)
     await bot.http.aclose()
 
 
