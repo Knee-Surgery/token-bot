@@ -1,0 +1,22 @@
+{
+ "halted": false,
+ "reason": "",
+ "positions": {},
+ "closed": [],
+ "seen": [
+  "7Ge2KHuJLgMUs4YBq1wjENAYZiGnpZXK3dC85JiuFUND",
+  "DrqXjXGHwcPpjp3XdBiF5c752z4vCL8cPWPGTBNppump",
+  "9DMUQbHWth5TtdSPZ1pRPsLTxsfYfM97n7K6x1MLpump",
+  "2iZ5QFMkaQmweT2xnvAA6co4TAnDYT9jqk7NXKCyghCX",
+  "7uCYgyuNRWTTuReNnBrs9FiNPoiX2tkUnKy77hjcpump",
+  "GLCR8RhUCJBZ4NxrTvK9sQ6ochbk4hSGWDAN73Chpump",
+  "HdRrFTqEFf8HHLT8ejsjrYrsYEW323gm9x5JwbXrivra",
+  "8KmoXhoeqPDhhrJ1b3hs1qPAdk5RYQr1JdCzs1JfUK4Q",
+  "5C69sv7RdXsfqeLkyNKLxUD2rE4HDxR9vJMNTvw5pump",
+  "Hiquf44FUNxn4h7kwX8W3FMeXR89iyebyQC2zzTBpump",
+  "2JYZNsPdvUkZJLHBYiaVBnCoY8RHLNomGUKRrmf1pump",
+  "Exuur5WLtiqN1mRyMJeHFf2Z5uFD1pBsatG5ZxSAXwV5"
+ ],
+ "paper_sol": 0.05,
+ "start_sol": 0.05
+}
