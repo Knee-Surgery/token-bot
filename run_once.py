@@ -1,21 +1,21 @@
 """
-Runner for GitHub Actions (no server needed).
-Each workflow run stays alive for LOOP_SECONDS (default 240) and cycles:
-  every 20s: manage open positions   |   every 60s: scan for entries + read Telegram commands
-State lives in auto_state.json, which the workflow commits back to the repo.
-Paper mode only unless ALLOW_LIVE_ACTIONS=true (not recommended).
+Runner for GitHub Actions (no server needed). Each workflow run stays alive for LOOP_SECONDS (default 240).
+
+EVO_MODE=true (default): evolutionary engine (evo.py), several paper variants, state in evo_state.json.
+EVO_MODE=false         : the single bot (auto.py), state in auto_state.json.
+Paper mode only unless ALLOW_LIVE_ACTIONS=true (only affects the single bot; not recommended).
 """
-import asyncio, os, time
+import asyncio, logging, os, time
 
 os.environ.setdefault("AUTO_MODE", "true")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-import bot, auto
+import bot, auto, evo
 from telegram import Bot
 
 LOOP_SECONDS = int(os.getenv("LOOP_SECONDS", "240"))
-MONITOR_EVERY = 20
-SCAN_EVERY = 60
-CMD_EVERY = 60
+EVO_MODE = os.getenv("EVO_MODE", "true").lower() == "true"
+MONITOR_EVERY, SCAN_EVERY, CMD_EVERY = 20, 60, 60
 
 
 async def handle_commands(tb: Bot):
@@ -43,8 +43,7 @@ async def handle_commands(tb: Bot):
                     f"{'HALTED: ' + s['reason'] if s['halted'] else 'Running'} "
                     f"({'PAPER' if bot.DRY_RUN else 'LIVE'})\n"
                     f"Closed: {n}, win rate {wr}, net PnL {pnl:+.4f} SOL\n{auto.breakdown(s)}\n"
-                    f"Open: {len(s['positions'])}  Paper bankroll: {s['paper_sol']:.4f} SOL\n"
-                    f"Halts if win rate < {auto.TARGET_WR:.0%} or net PnL < 0 after {auto.EVAL_AFTER} trades.")
+                    f"Open: {len(s['positions'])}  Paper bankroll: {s['paper_sol']:.4f} SOL")
             elif cmd == "/analyze" and len(parts) > 1:
                 a = await bot.analyze(parts[1])
                 await tb.send_message(bot.OWNER_ID, bot.fmt_analysis(a))
@@ -56,14 +55,19 @@ async def handle_commands(tb: Bot):
 
 
 async def main():
+    tb = Bot(bot.BOT_TOKEN)
+    g = vars(bot)
+    if EVO_MODE:
+        await evo.run(tb, g, LOOP_SECONDS)
+        await bot.http.aclose()
+        return
+
     if not bot.DRY_RUN and os.getenv("ALLOW_LIVE_ACTIONS") != "true":
         raise SystemExit("Live trading from GitHub Actions is disabled. Set DRY_RUN=true (paper mode).")
-    tb = Bot(bot.BOT_TOKEN)
 
     class App:  # minimal shim: auto.py only needs app.bot.send_message
         bot = tb
 
-    g = vars(bot)
     start = time.time()
     last_scan = last_cmd = 0.0
     while True:
