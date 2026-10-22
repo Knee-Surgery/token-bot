@@ -376,17 +376,6 @@
     "symbol": "Dacity"
    }
   },
-  "CARDSccUMFKoPRZxt5vt3ksUbxEFEcnZ3H2pd3dKxYjp": {
-   "ts": 1792622371.2224836,
-   "a": {
-    "score": 25,
-    "liq": 4725096.13,
-    "holders": 223566,
-    "top10": 72.53,
-    "symbol": "CARDS",
-    "danger": true
-   }
-  },
   "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump": {
    "ts": 1792630372.0155876,
    "a": {
@@ -395,17 +384,6 @@
     "holders": 12134,
     "top10": 20.19,
     "symbol": "PHP",
-    "danger": false
-   }
-  },
-  "Dz9mQ9NzkBcCsuGPFJ3r1bS4wgqKMHBPiVuniW8Mbonk": {
-   "ts": 1792630372.0155876,
-   "a": {
-    "score": 60,
-    "liq": 4296638.31,
-    "holders": 229819,
-    "top10": 36.52,
-    "symbol": "USELESS",
     "danger": false
    }
   },
@@ -497,17 +475,6 @@
     "danger": false
    }
   },
-  "CSocnzcRpgSCr1naKcNTieWZUxb6rABe45j844m7pump": {
-   "ts": 1792661775.0325363,
-   "a": {
-    "score": 20,
-    "liq": 497173.56,
-    "holders": 57062,
-    "top10": 78.25,
-    "symbol": "Kimchi",
-    "danger": true
-   }
-  },
   "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": {
    "ts": 1792661775.0325363,
    "a": {
@@ -530,30 +497,85 @@
     "danger": false
    }
   },
-  "DvjbEsdca43oQcw2h3HW1CT7N3x5vRcr3QrvTUHnXvgV": {
-   "ts": 1792661968.999095,
+  "Dz9mQ9NzkBcCsuGPFJ3r1bS4wgqKMHBPiVuniW8Mbonk": {
+   "ts": 1792663746.6621144,
    "a": {
-    "score": 35,
-    "liq": 610960.02,
-    "holders": 221257,
-    "top10": 71.16,
-    "symbol": "DOOD",
+    "score": 40,
+    "liq": 4027947.04,
+    "holders": null,
+    "top10": null,
+    "symbol": "USELESS",
+    "danger": false
+   }
+  },
+  "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn": {
+   "ts": 1792663746.6621144,
+   "a": {
+    "score": 60,
+    "liq": 24484009.51,
+    "holders": 1152762,
+    "top10": 60.3,
+    "symbol": "PUMP",
+    "danger": false
+   }
+  },
+  "6GmAFSYs4gk3FDao5FzzySQpPZaWsa4rUJHacpMpUNgx": {
+   "ts": 1792663746.6621144,
+   "a": {
+    "score": 60,
+    "liq": 2210106.87,
+    "holders": 276618,
+    "top10": 20.75,
+    "symbol": "STONK",
+    "danger": false
+   }
+  },
+  "CARDSccUMFKoPRZxt5vt3ksUbxEFEcnZ3H2pd3dKxYjp": {
+   "ts": 1792663813.9413526,
+   "a": {
+    "score": 25,
+    "liq": 4475556.85,
+    "holders": 223896,
+    "top10": 72.97,
+    "symbol": "CARDS",
     "danger": true
    }
   },
   "Ai66LHZG9MCzg1WKdawwqduVAXpNDUuV8M3uyq5ppump": {
-   "ts": 1792661968.999095,
+   "ts": 1792663813.9413526,
    "a": {
     "score": 60,
-    "liq": 2599095.71,
-    "holders": 410577,
+    "liq": 2621674.6,
+    "holders": 410631,
     "top10": 15.26,
     "symbol": "CATE",
     "danger": false
    }
+  },
+  "DvjbEsdca43oQcw2h3HW1CT7N3x5vRcr3QrvTUHnXvgV": {
+   "ts": 1792663876.5627964,
+   "a": {
+    "score": 35,
+    "liq": 611282.55,
+    "holders": 221261,
+    "top10": 71.18,
+    "symbol": "DOOD",
+    "danger": true
+   }
+  },
+  "CSocnzcRpgSCr1naKcNTieWZUxb6rABe45j844m7pump": {
+   "ts": 1792663942.92925,
+   "a": {
+    "score": 20,
+    "liq": 505494.93,
+    "holders": 57189,
+    "top10": 78.28,
+    "symbol": "Kimchi",
+    "danger": true
+   }
   }
  },
  "halted": false,
- "tg_offset": 872774960,
+ "tg_offset": 872774970,
  "await": null
 }
