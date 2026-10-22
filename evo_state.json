@@ -76,7 +76,33 @@
    "reason": "",
    "paper_usd": 10.86952803973715,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": {
+     "name": "OA",
+     "entry_price": 0.01726,
+     "entry_liq": 380572.01,
+     "ts": 1792679199.667094,
+     "cost_usd": 5.714285714285714,
+     "size_tokens": 331.07101473266016,
+     "score": 20,
+     "holders": 8359,
+     "top10": 2.13,
+     "tp": 6.0,
+     "sl": 3.0,
+     "hold": 10,
+     "page_id": "40193233-c104-81c4-9664-fac0d212d0cf",
+     "feat": {
+      "m5": 2.02,
+      "h1": 1.67,
+      "liq": 380572.01,
+      "vol_h1": 190437.11,
+      "txns": 210,
+      "holders": 8359,
+      "top10": 2.13,
+      "score": 20
+     }
+    }
+   },
    "closed": [
     {
      "mint": "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump",
@@ -245,8 +271,8 @@
     "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611236.1713085,
     "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump": 1792630372.9295871,
     "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn": 1792666545.012606,
-    "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": 1792667401.6264186,
-    "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": 1792671315.988289
+    "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": 1792671315.988289,
+    "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": 1792679199.667094
    },
    "created": 1792611233.4709148,
    "val_start": 0
@@ -468,17 +494,6 @@
     "symbol": "Dacity"
    }
   },
-  "33jENUQnjoitkMFpvNJcSHyLAHFWJuHwT6E3E8CNpump": {
-   "ts": 1792630372.0155876,
-   "a": {
-    "score": 60,
-    "liq": 204435.66,
-    "holders": 35681,
-    "top10": 17.04,
-    "symbol": "DOPE",
-    "danger": false
-   }
-  },
   "5UUH9RTDiSpq6HKS6bp4NdU9PNJpXRXuiw6ShBTBhgH2": {
    "ts": 1792630570.365151,
    "a": {
@@ -556,17 +571,6 @@
     "danger": false
    }
   },
-  "DvjbEsdca43oQcw2h3HW1CT7N3x5vRcr3QrvTUHnXvgV": {
-   "ts": 1792663876.5627964,
-   "a": {
-    "score": 35,
-    "liq": 611282.55,
-    "holders": 221261,
-    "top10": 71.18,
-    "symbol": "DOOD",
-    "danger": true
-   }
-  },
   "CSocnzcRpgSCr1naKcNTieWZUxb6rABe45j844m7pump": {
    "ts": 1792663942.92925,
    "a": {
@@ -622,17 +626,6 @@
     "danger": false
    }
   },
-  "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": {
-   "ts": 1792667400.5298429,
-   "a": {
-    "score": 30,
-    "liq": 369655.43,
-    "holders": 8062,
-    "top10": 2.14,
-    "symbol": "OA",
-    "danger": false
-   }
-  },
   "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump": {
    "ts": 1792667466.9931095,
    "a": {
@@ -666,17 +659,6 @@
     "danger": false
    }
   },
-  "Dz9mQ9NzkBcCsuGPFJ3r1bS4wgqKMHBPiVuniW8Mbonk": {
-   "ts": 1792668506.062229,
-   "a": {
-    "score": 60,
-    "liq": 4051650.78,
-    "holders": 230279,
-    "top10": 36.47,
-    "symbol": "USELESS",
-    "danger": false
-   }
-  },
   "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn": {
    "ts": 1792671315.2698896,
    "a": {
@@ -696,6 +678,83 @@
     "holders": 11022,
     "top10": 1.71,
     "symbol": "KIMCHIBULL",
+    "danger": false
+   }
+  },
+  "33jENUQnjoitkMFpvNJcSHyLAHFWJuHwT6E3E8CNpump": {
+   "ts": 1792679198.5370734,
+   "a": {
+    "score": 50,
+    "liq": 184956.91,
+    "holders": 35742,
+    "top10": 17.58,
+    "symbol": "DOPE",
+    "danger": false
+   }
+  },
+  "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": {
+   "ts": 1792679198.5370734,
+   "a": {
+    "score": 20,
+    "liq": 380572.01,
+    "holders": 8359,
+    "top10": 2.13,
+    "symbol": "OA",
+    "danger": false
+   }
+  },
+  "Dz9mQ9NzkBcCsuGPFJ3r1bS4wgqKMHBPiVuniW8Mbonk": {
+   "ts": 1792679198.5370734,
+   "a": {
+    "score": 60,
+    "liq": 4063510.29,
+    "holders": 230328,
+    "top10": 36.47,
+    "symbol": "USELESS",
+    "danger": false
+   }
+  },
+  "nB41BqzvvFoRAus2x3WCv55jpvyvpWLwV4GRGRMWwdw": {
+   "ts": 1792679198.5370734,
+   "a": {
+    "score": 15,
+    "liq": 329792.98,
+    "holders": 2304,
+    "top10": 81.22,
+    "symbol": "ALLOX",
+    "danger": true
+   }
+  },
+  "Ecmsss7ijkFgaWoXR7YN4zmiYPZRBKwRwddFc4ymmmCM": {
+   "ts": 1792679198.5370734,
+   "a": {
+    "score": 15,
+    "liq": 356688.98,
+    "holders": 2300,
+    "top10": 81.11,
+    "symbol": "SO",
+    "danger": true
+   }
+  },
+  "DvjbEsdca43oQcw2h3HW1CT7N3x5vRcr3QrvTUHnXvgV": {
+   "ts": 1792679266.66211,
+   "a": {
+    "score": 35,
+    "liq": 601297.93,
+    "holders": 221238,
+    "top10": 71.57,
+    "symbol": "DOOD",
+    "danger": true
+   }
+  },
+  "5tCju6YNxHq5zrA6tGndr6F7TK42mpUFmeE31cSFpump": {
+   "ts": 1792679266.66211,
+   "a": {
+    "score": 50,
+    "liq": 153131.66,
+    "holders": 36953,
+    "top10": 23.55,
+    "symbol": "swordcat",
     "danger": false
    }
   }
