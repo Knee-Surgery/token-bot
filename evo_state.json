@@ -74,7 +74,7 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 8.645517805976258,
+   "paper_usd": 8.327236314869298,
    "start_usd": 10.0,
    "positions": {},
    "closed": [
@@ -95,10 +95,29 @@
       "top10": 18.18,
       "score": 60
      }
+    },
+    {
+     "mint": "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump",
+     "pnl_pct": -5.5699260943718,
+     "pnl_usd": -0.31828149110696,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792630569.3923824,
+     "feat": {
+      "m5": 2.81,
+      "h1": 33.72,
+      "liq": 85718.43,
+      "vol_h1": 492046.65,
+      "txns": 171,
+      "holders": 12134,
+      "top10": 20.19,
+      "score": 15
+     }
     }
    ],
    "cooldown": {
-    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611236.1713085
+    "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611236.1713085,
+    "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump": 1792630372.9295871
    },
    "created": 1792611233.4709148,
    "val_start": 0
@@ -299,39 +318,6 @@
     "symbol": "Dacity"
    }
   },
-  "CSocnzcRpgSCr1naKcNTieWZUxb6rABe45j844m7pump": {
-   "ts": 1792622305.5823212,
-   "a": {
-    "score": 0,
-    "liq": 560776.69,
-    "holders": 55352,
-    "top10": 78.18,
-    "symbol": "Kimchi",
-    "danger": true
-   }
-  },
-  "DGNE5ZJfVRDysfrHetZXPdjWP3boHxRmGpTQ2JxSPpPE": {
-   "ts": 1792622305.5823212,
-   "a": {
-    "score": 15,
-    "liq": 394179.52,
-    "holders": 2112,
-    "top10": 80.97,
-    "symbol": "SO",
-    "danger": true
-   }
-  },
-  "AVTTVLHVtDdHbGcZ9ki6LRBLjGJQEqHH6eq1CRCkFX1U": {
-   "ts": 1792622305.5823212,
-   "a": {
-    "score": 15,
-    "liq": 313204.28,
-    "holders": 2114,
-    "top10": 81.25,
-    "symbol": "ALLOX",
-    "danger": true
-   }
-  },
   "CARDSccUMFKoPRZxt5vt3ksUbxEFEcnZ3H2pd3dKxYjp": {
    "ts": 1792622371.2224836,
    "a": {
@@ -342,9 +328,108 @@
     "symbol": "CARDS",
     "danger": true
    }
+  },
+  "DGNE5ZJfVRDysfrHetZXPdjWP3boHxRmGpTQ2JxSPpPE": {
+   "ts": 1792630372.0155876,
+   "a": {
+    "score": 15,
+    "liq": 382906.52,
+    "holders": 2616,
+    "top10": 81.13,
+    "symbol": "SO",
+    "danger": true
+   }
+  },
+  "AVTTVLHVtDdHbGcZ9ki6LRBLjGJQEqHH6eq1CRCkFX1U": {
+   "ts": 1792630372.0155876,
+   "a": {
+    "score": 15,
+    "liq": 293207.63,
+    "holders": 2604,
+    "top10": 81.46,
+    "symbol": "ALLOX",
+    "danger": true
+   }
+  },
+  "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump": {
+   "ts": 1792630372.0155876,
+   "a": {
+    "score": 15,
+    "liq": 85718.43,
+    "holders": 12134,
+    "top10": 20.19,
+    "symbol": "PHP",
+    "danger": false
+   }
+  },
+  "DvdmEnztCmXwBnAbedD48XVGZJSxq31zNvnyftXdpump": {
+   "ts": 1792630372.0155876,
+   "a": {
+    "score": 60,
+    "liq": 238857.29,
+    "holders": 33357,
+    "top10": 19.23,
+    "symbol": "pill",
+    "danger": false
+   }
+  },
+  "Dz9mQ9NzkBcCsuGPFJ3r1bS4wgqKMHBPiVuniW8Mbonk": {
+   "ts": 1792630372.0155876,
+   "a": {
+    "score": 60,
+    "liq": 4296638.31,
+    "holders": 229819,
+    "top10": 36.52,
+    "symbol": "USELESS",
+    "danger": false
+   }
+  },
+  "33jENUQnjoitkMFpvNJcSHyLAHFWJuHwT6E3E8CNpump": {
+   "ts": 1792630372.0155876,
+   "a": {
+    "score": 60,
+    "liq": 204435.66,
+    "holders": 35681,
+    "top10": 17.04,
+    "symbol": "DOPE",
+    "danger": false
+   }
+  },
+  "2qzVdwoPsxW9RZKkgEBU5Vr3xz8hqRJXfCyeSPVvhXrU": {
+   "ts": 1792630439.368719,
+   "a": {
+    "score": 15,
+    "liq": 337999.3,
+    "holders": 2570,
+    "top10": 81.32,
+    "symbol": "RSGP",
+    "danger": true
+   }
+  },
+  "CSocnzcRpgSCr1naKcNTieWZUxb6rABe45j844m7pump": {
+   "ts": 1792630504.2417629,
+   "a": {
+    "score": 20,
+    "liq": 520371.47,
+    "holders": 55819,
+    "top10": 78.15,
+    "symbol": "Kimchi",
+    "danger": true
+   }
+  },
+  "5UUH9RTDiSpq6HKS6bp4NdU9PNJpXRXuiw6ShBTBhgH2": {
+   "ts": 1792630570.365151,
+   "a": {
+    "score": 60,
+    "liq": 2782274.34,
+    "holders": 218412,
+    "top10": 27.02,
+    "symbol": "TROLL",
+    "danger": false
+   }
   }
  },
  "halted": false,
- "tg_offset": 872774947,
+ "tg_offset": 872774954,
  "await": null
 }
