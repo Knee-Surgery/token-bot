@@ -9,8 +9,8 @@ import asyncio, logging, os, time
 
 os.environ.setdefault("AUTO_MODE", "true")
 if os.getenv("EVO_MODE", "true").lower() == "true":
-    os.environ["MIN_HOLDERS"] = "0"      # the evolution engine decides holder / top-10 limits
-    os.environ["MAX_TOP10_PCT"] = "100"
+    os.environ["MIN_HOLDERS"] = "50"     # rug-check floor; evolution can only make it stricter
+    os.environ["MAX_TOP10_PCT"] = "80"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 import bot, auto, evo

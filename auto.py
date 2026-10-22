@@ -163,6 +163,22 @@ async def candidates(g) -> list[str]:
     return uniq
 
 
+async def new_launches(g) -> list[str]:
+    """Freshly created Solana pools (GeckoTerminal), newest first. Used for launch sniping."""
+    out: list[str] = []
+    try:
+        r = await g["http"].get("https://api.geckoterminal.com/api/v2/networks/solana/new_pools",
+                                headers={"Accept": "application/json;version=20230302"})
+        for d in r.json().get("data", []):
+            tid = d["relationships"]["base_token"]["data"]["id"]  # "solana_<mint>"
+            m = tid.split("_", 1)[1]
+            if m not in SKIP_MINTS:
+                out.append(m)
+    except Exception as e:
+        log.warning("geckoterminal new_pools failed: %s", e)
+    return out
+
+
 def scalp_ok(p: dict) -> bool:
     """Momentum filter: rising but not parabolic over 5m, buyers ahead of sellers, real volume."""
     ch = p.get("priceChange") or {}

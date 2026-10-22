@@ -51,7 +51,8 @@ async def screen(g, S, key):
                     cur = f"{(float(p['priceUsd']) / pos['entry_price'] - 1) * 100:+.1f}%"
                 except Exception:
                     cur = "?"
-                lines.append(f"{v['id']} {pos['name']}  {cur}  (TP {pos['tp']}% / SL {pos['sl']}%, "
+                lines.append(f"{v['id']} {pos['name']}  {cur}  (TP {pos['tp']}% / SL {pos['sl']}% / "
+                             f"trail {pos.get('trail', '-')}%{' ARMED' if pos.get('armed') else ''}, "
                              f"{(time.time() - pos['ts']) / 60:.0f}m of {pos['hold']}m)")
         return "OPEN TRADES (paper)\n\n" + ("\n".join(lines) or "None open right now.")
     if key == "recent":
@@ -75,9 +76,13 @@ async def screen(g, S, key):
         return "CANDIDATES\n\nNo variant has passed 30 trades yet.\n\nClosest right now:\n" + ("\n".join(lines) or "none")
     if key == "rules":
         return ("RULES (cannot be changed by the bot)\n\n"
-                "• Paper trading only\n• Liquidity at least $10k, no RugCheck danger flags\n"
-                "• Holder count, top-10 share and score limits are evolved, not fixed\n"
-                f"• Each winning trade targets ${evo.TARGET_USD:.2f}+ net\n• Take-profit 5% or more, stop-loss at most 1.5x take-profit\n"
+                "• Paper trading only\n"
+                f"• Rug check on every entry: {evo.HARD_MIN_HOLDERS}+ holders, top 10 under {evo.HARD_MAX_TOP10:.0f}%, "
+                f"liquidity ${evo.HARD_MIN_LIQ:,.0f}+, no RugCheck danger flags, sells must exist\n"
+                "• Nothing else is fixed: token age, momentum, volume are optional and evolved\n"
+                f"• Hold {evo.MIN_HOLD:.0f} to {evo.HARD_HOLD:.0f} min (rug exits can fire sooner)\n"
+                "• Take-profit 45%+ (aim 100%+), trailing stop from peak once past break-even\n"
+                f"• Rug exit if liquidity drops {evo.RUG_LIQ_DROP:.0%}+ or price crashes {evo.CRASH_TICK_PCT:.0f}%+ between checks\n"
                 f"• Retire a variant after {evo.EVAL_AFTER} trades if win rate < {evo.TARGET_WR:.0%} or PnL < 0\n"
                 f"• Survive {evo.GRAD_TRADES} trades, then {evo.VAL_TRADES} fresh validation trades\n"
                 "• Candidates are reported only; nothing goes live automatically")
