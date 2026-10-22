@@ -38,7 +38,7 @@ TARGET_USD = float(os.getenv("SCALP_TARGET_USD", "0.20"))        # min expected 
 STALE_HOURS = int(os.getenv("EVO_STALE_HOURS", "48"))
 NOTIFY_TRADES = os.getenv("EVO_NOTIFY_TRADES", "false").lower() == "true"
 ANALYZE_LIMIT = int(os.getenv("EVO_ANALYZE_LIMIT", "4"))         # fresh analyses per scan
-CANDIDATE_LIMIT = int(os.getenv("EVO_CANDIDATE_LIMIT", "40"))
+CANDIDATE_LIMIT = int(os.getenv("EVO_CANDIDATE_LIMIT", "80"))
 COOLDOWN_MIN = 30
 ACACHE_TTL_MIN = 30
 
@@ -292,7 +292,7 @@ def apply_judgement(S, v, events):
 # ---------- market ----------
 async def get_pair(g, mint, pc, ttl):
     hit = pc.get(mint)
-    if hit and time.time() - hit[0] < ttl:
+    if hit and time.time() - hit[0] < (ttl if hit[1] else min(ttl, 15)):  # retry "no pair yet" sooner (new tokens)
         return hit[1]
     p = await auto.best_pair(g, mint)
     pc[mint] = (time.time(), p)
@@ -462,7 +462,10 @@ async def scan(g, S, pc, events):
             ensure_population(S, events)
     random.shuffle(free)
 
-    cands = list(dict.fromkeys((await auto.new_launches(g)) + (await auto.candidates(g))))[:CANDIDATE_LIMIT]
+    cands = (await auto.discover(g))[:CANDIDATE_LIMIT]
+    stale = [m for m in cands if not (pc.get(m) and now - pc[m][0] < 15)]
+    for m, p in (await auto.best_pairs(g, stale)).items():  # one request per 30 coins instead of one each
+        pc[m] = (now, p)
     analyses = 0
     for mint in cands:
         if not free:

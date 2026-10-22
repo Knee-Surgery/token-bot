@@ -6,6 +6,7 @@ import os, time, logging
 
 from telegram import InlineKeyboardButton as Btn, InlineKeyboardMarkup as Markup
 
+import auto
 import evo
 
 log = logging.getLogger("menu")
@@ -18,7 +19,7 @@ def menu_markup(S):
     return Markup([
         [Btn("📊 Leaderboard", callback_data="m:lb"), Btn("💼 Open trades", callback_data="m:open")],
         [Btn("📜 Recent trades", callback_data="m:recent"), Btn("🏆 Candidates", callback_data="m:cand")],
-        [Btn("🔍 Analyze token", callback_data="m:analyze"), Btn("⚙️ Rules", callback_data="m:rules")],
+        [Btn("🔎 Search / analyze", callback_data="m:analyze"), Btn("⚙️ Rules", callback_data="m:rules")],
         [Btn("▶️ Resume" if halted else "⏸ Pause", callback_data="m:resume" if halted else "m:pause"),
          Btn("📓 Journal", url=JOURNAL_URL)],
     ])
@@ -37,6 +38,40 @@ def menu_text(S) -> str:
 
 
 def _short(m): return f"{m[:4]}..{m[-4:]}"
+
+
+def _age(minutes):
+    if minutes is None:
+        return "?"
+    return f"{minutes:.0f}m" if minutes < 120 else f"{minutes / 60:.0f}h" if minutes < 2880 else f"{minutes / 1440:.0f}d"
+
+
+def fmt_search(q, rows) -> str:
+    if not rows:
+        return f"No Solana coins found for '{q}'. Try another name, a symbol, or the mint address."
+    lines = []
+    for r in rows:
+        ch = "" if r["h24"] is None else f", 24h {r['h24']:+.0f}%"
+        lines.append(f"{r['symbol']} ({r['name'][:22]}) · age {_age(r['age_min'])}, liq ${r['liq']:,.0f}, "
+                     f"vol24 ${r['vol24']:,.0f}{ch}\n{r['mint']}")
+    return f"Results for '{q}' (Solana only):\n\n" + "\n\n".join(lines) + "\n\nTap a coin for the full analysis."
+
+
+def search_markup(rows):
+    kb = [[Btn(f"🔍 {r['symbol'][:14]}", callback_data=f"m:a:{r['mint']}")] for r in rows[:5]]
+    kb.append([Btn("⬅️ Menu", callback_data="m:menu")])
+    return Markup(kb)
+
+
+async def analysis_text(g, mint: str) -> str:
+    a = await g["analyze"](mint)
+    text = g["fmt_analysis"](a)
+    p = await auto.best_pair(g, mint)
+    if p:
+        ok, why = evo.rug_ok({"holders": a.get("holders"), "top10": a.get("top10"),
+                              "danger": any("[danger]" in f for f in (a.get("flags") or []))}, p)
+        text += "\n\nBot rug check: " + ("PASS" if ok else f"FAIL ({why})")
+    return text
 
 
 async def screen(g, S, key):
@@ -80,6 +115,8 @@ async def screen(g, S, key):
                 f"• Rug check on every entry: {evo.HARD_MIN_HOLDERS}+ holders, top 10 under {evo.HARD_MAX_TOP10:.0f}%, "
                 f"liquidity ${evo.HARD_MIN_LIQ:,.0f}+, no RugCheck danger flags, sells must exist\n"
                 "• Nothing else is fixed: token age, momentum, volume are optional and evolved\n"
+                "• Finds coins from: newest pools (3 pages), new profiles, boosts, trending, top volume, "
+                "community takeovers and rotating keyword searches, Solana only\n"
                 f"• Hold {evo.MIN_HOLD:.0f} to {evo.HARD_HOLD:.0f} min (rug exits can fire sooner)\n"
                 "• Take-profit 45%+ (aim 100%+), trailing stop from peak once past break-even\n"
                 f"• Rug exit if liquidity drops {evo.RUG_LIQ_DROP:.0%}+ or price crashes {evo.CRASH_TICK_PCT:.0f}%+ between checks\n"
@@ -121,7 +158,11 @@ async def handle(tb, g, S):
                 S["await"] = None
                 if key == "analyze":
                     S["await"] = "analyze"
-                    await _edit(tb, g, q, "Send me a token mint address to analyse.", BACK)
+                    await _edit(tb, g, q, "Send a coin name, symbol or mint address.\n\nI'll search Solana "
+                                          "coins and show the best matches.", BACK)
+                elif key.startswith("a:"):
+                    await _edit(tb, g, q, "Analysing...", None)
+                    await tb.send_message(owner, (await analysis_text(g, key[2:]))[:3900], reply_markup=BACK)
                 elif key in ("pause", "resume"):
                     S["halted"] = key == "pause"
                     await _edit(tb, g, q, menu_text(S), menu_markup(S))
@@ -133,12 +174,13 @@ async def handle(tb, g, S):
                 text = u.message.text.strip()
                 if S.get("await") == "analyze" and not text.startswith("/"):
                     S["await"] = None
-                    if not (32 <= len(text) <= 44 and text.isalnum()):
-                        await tb.send_message(owner, "That doesn't look like a Solana token address.", reply_markup=BACK)
-                        continue
-                    await tb.send_message(owner, "Analysing...")
-                    a = await g["analyze"](text)
-                    await tb.send_message(owner, g["fmt_analysis"](a)[:3900], reply_markup=BACK)
+                    if 32 <= len(text) <= 44 and text.isalnum():      # a mint address: analyse it directly
+                        await tb.send_message(owner, "Analysing...")
+                        await tb.send_message(owner, (await analysis_text(g, text))[:3900], reply_markup=BACK)
+                    else:                                              # a name or symbol: search
+                        await tb.send_message(owner, "Searching...")
+                        rows = await auto.search_coins(g, text)
+                        await tb.send_message(owner, fmt_search(text, rows)[:3900], reply_markup=search_markup(rows))
                 elif text.split()[0].split("@")[0].lower() == "/halt":
                     S["halted"] = True
                     await tb.send_message(owner, menu_text(S), reply_markup=menu_markup(S))

@@ -11,7 +11,7 @@ Hard gates for every entry: liquidity, >= MIN_HOLDERS holders, top-10 <= MAX_TOP
 Halts itself (no new entries) if, after AUTO_EVAL_AFTER closed trades, win rate < AUTO_TARGET_WINRATE
 or net PnL < 0, or if drawdown exceeds AUTO_MAX_DRAWDOWN_PCT. No auto-resume: delete auto_state.json.
 """
-import json, os, time, logging
+import json, os, time, logging, urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -163,20 +163,121 @@ async def candidates(g) -> list[str]:
     return uniq
 
 
-async def new_launches(g) -> list[str]:
-    """Freshly created Solana pools (GeckoTerminal), newest first. Used for launch sniping."""
-    out: list[str] = []
+# ---------- wide discovery: new pools first, then everything else ----------
+GT_BASE = "https://api.geckoterminal.com/api/v2/networks/solana"
+GT_HEADERS = {"Accept": "application/json;version=20230302"}
+DS = "https://api.dexscreener.com"
+# keyword searches rotate through these; DexScreener matches name, symbol and address (pump.fun mints end in "pump")
+SEARCH_TERMS = ["pump", "sol", "meme", "ai", "cat", "dog", "pepe", "trump", "frog", "moon", "baby", "inu",
+                "agent", "gold", "bonk", "wif", "coin", "token", "elon", "dao", "game", "fart", "king", "bull"]
+_cool: dict[str, float] = {}
+_tick = {"n": 0}
+
+
+async def _get_json(g, key, url, headers=None, cool=90):
+    """GET with a per-source cooldown after a 429, so one rate-limited source never blocks the others."""
+    if time.time() < _cool.get(key, 0):
+        return None
     try:
-        r = await g["http"].get("https://api.geckoterminal.com/api/v2/networks/solana/new_pools",
-                                headers={"Accept": "application/json;version=20230302"})
-        for d in r.json().get("data", []):
-            tid = d["relationships"]["base_token"]["data"]["id"]  # "solana_<mint>"
-            m = tid.split("_", 1)[1]
-            if m not in SKIP_MINTS:
-                out.append(m)
+        r = await g["http"].get(url, headers=headers)
+        if r.status_code == 429:
+            _cool[key] = time.time() + cool
+            log.warning("%s rate limited, pausing it for %ss", key, cool)
+            return None
+        r.raise_for_status()
+        return r.json()
     except Exception as e:
-        log.warning("geckoterminal new_pools failed: %s", e)
+        log.warning("%s failed: %s", key, e)
+        return None
+
+
+def _gt_mints(js) -> list[str]:
+    out = []
+    for d in (js or {}).get("data", []):
+        try:
+            out.append(d["relationships"]["base_token"]["data"]["id"].split("_", 1)[1])  # "solana_<mint>"
+        except Exception:
+            continue
     return out
+
+
+def _ds_mints(js) -> list[str]:
+    return [x["tokenAddress"] for x in (js if isinstance(js, list) else [])
+            if x.get("chainId") == "solana" and x.get("tokenAddress")]
+
+
+def _pick_best(pairs: list) -> dict:
+    """Highest-liquidity Solana pair for each base token."""
+    best: dict = {}
+    for p in pairs or []:
+        if p.get("chainId") != "solana":
+            continue
+        m = (p.get("baseToken") or {}).get("address")
+        if not m:
+            continue
+        liq = (p.get("liquidity") or {}).get("usd", 0) or 0
+        if m not in best or liq > ((best[m].get("liquidity") or {}).get("usd", 0) or 0):
+            best[m] = p
+    return best
+
+
+async def discover(g) -> list[str]:
+    """Candidate mints, newest first. Several sources every scan, plus rotating ones, so coverage keeps widening."""
+    n = _tick["n"]
+    _tick["n"] += 1
+    out: list[str] = []
+    for page in (1, 2 + n % 2):  # newest pools: page 1 every scan, pages 2 and 3 alternating
+        out += _gt_mints(await _get_json(g, f"gt_new_{page}", f"{GT_BASE}/new_pools?page={page}", GT_HEADERS))
+    out += _ds_mints(await _get_json(g, "ds_profiles", f"{DS}/token-profiles/latest/v1"))
+    out += _ds_mints(await _get_json(g, "ds_boosts", f"{DS}/token-boosts/latest/v1"))
+    rot = n % 4  # one rotating source per scan keeps every API inside its rate limit
+    if rot == 0:
+        out += _gt_mints(await _get_json(g, "gt_trending", f"{GT_BASE}/trending_pools", GT_HEADERS))
+    elif rot == 1:
+        out += _gt_mints(await _get_json(g, "gt_volume", f"{GT_BASE}/pools?sort=h24_volume_usd_desc", GT_HEADERS))
+    elif rot == 2:
+        out += _ds_mints(await _get_json(g, "ds_boosts_top", f"{DS}/token-boosts/top/v1"))
+    else:
+        out += _ds_mints(await _get_json(g, "ds_takeovers", f"{DS}/community-takeovers/latest/v1"))
+    term = SEARCH_TERMS[n % len(SEARCH_TERMS)]  # keyword search across everything DexScreener knows, newest first
+    js = await _get_json(g, "ds_search", f"{DS}/latest/dex/search?q={term}")
+    pairs = [p for p in (js or {}).get("pairs", []) if p.get("chainId") == "solana"]
+    pairs.sort(key=lambda p: p.get("pairCreatedAt") or 0, reverse=True)
+    out += [(p.get("baseToken") or {}).get("address") for p in pairs]
+    seen, uniq = set(), []
+    for m in out:
+        if m and m not in seen and m not in SKIP_MINTS:
+            seen.add(m)
+            uniq.append(m)
+    return uniq
+
+
+async def best_pairs(g, mints: list[str]) -> dict:
+    """Batch lookup, 30 mints per request: {mint: best Solana pair}. Missing mints are simply absent."""
+    out: dict = {}
+    for i in range(0, len(mints), 30):
+        chunk = mints[i:i + 30]
+        js = await _get_json(g, "ds_batch", f"{DS}/tokens/v1/solana/" + ",".join(chunk))
+        pairs = js if isinstance(js, list) else ((js or {}).get("pairs") or [])
+        want = set(chunk)
+        out.update({m: p for m, p in _pick_best(pairs).items() if m in want})
+    return out
+
+
+async def search_coins(g, query: str, limit: int = 6) -> list[dict]:
+    """Search any Solana coin by name, symbol or mint address (DexScreener). Highest liquidity first."""
+    js = await _get_json(g, "ds_search_user", f"{DS}/latest/dex/search?q=" + urllib.parse.quote(query.strip()), cool=30)
+    now = time.time()
+    rows = []
+    for m, p in _pick_best((js or {}).get("pairs") or []).items():
+        created = p.get("pairCreatedAt")
+        rows.append({"mint": m, "symbol": (p["baseToken"].get("symbol") or "?"), "name": (p["baseToken"].get("name") or ""),
+                     "age_min": (now * 1000 - float(created)) / 60000 if created else None,
+                     "liq": (p.get("liquidity") or {}).get("usd", 0) or 0,
+                     "vol24": (p.get("volume") or {}).get("h24", 0) or 0,
+                     "h24": (p.get("priceChange") or {}).get("h24")})
+    rows.sort(key=lambda r: r["liq"], reverse=True)
+    return rows[:limit]
 
 
 def scalp_ok(p: dict) -> bool:
