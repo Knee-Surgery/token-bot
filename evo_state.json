@@ -74,35 +74,9 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.926170363388518,
+   "paper_usd": 10.549563332911129,
    "start_usd": 10.0,
-   "positions": {
-    "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": {
-     "name": "KIMCHIBULL",
-     "entry_price": 0.006356,
-     "entry_liq": 241572.91,
-     "ts": 1792667537.4259384,
-     "cost_usd": 5.714285714285714,
-     "size_tokens": 899.0380293086398,
-     "score": 20,
-     "holders": 10929,
-     "top10": 1.67,
-     "tp": 6.0,
-     "sl": 3.0,
-     "hold": 10,
-     "page_id": "40193233-c104-811e-83cb-c68754480f77",
-     "feat": {
-      "m5": 2.97,
-      "h1": 20.32,
-      "liq": 241572.91,
-      "vol_h1": 241803.51,
-      "txns": 520,
-      "holders": 10929,
-      "top10": 1.67,
-      "score": 20
-     }
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump",
@@ -228,6 +202,24 @@
       "holders": 8062,
       "top10": 2.14,
       "score": 30
+     }
+    },
+    {
+     "mint": "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump",
+     "pnl_pct": -6.590623033354312,
+     "pnl_usd": -0.37660703047738925,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792668439.9900923,
+     "feat": {
+      "m5": 2.97,
+      "h1": 20.32,
+      "liq": 241572.91,
+      "vol_h1": 241803.51,
+      "txns": 520,
+      "holders": 10929,
+      "top10": 1.67,
+      "score": 20
      }
     }
    ],
@@ -623,28 +615,6 @@
     "danger": false
    }
   },
-  "GWe3TNg1UPxeaSazxK8U49PDAqXCaX9Jc8zbttFLpump": {
-   "ts": 1792666544.6456754,
-   "a": {
-    "score": 50,
-    "liq": 60717.7,
-    "holders": 10172,
-    "top10": 21.05,
-    "symbol": "COMPUTE",
-    "danger": false
-   }
-  },
-  "Dz9mQ9NzkBcCsuGPFJ3r1bS4wgqKMHBPiVuniW8Mbonk": {
-   "ts": 1792666611.5572817,
-   "a": {
-    "score": 60,
-    "liq": 4038193.7,
-    "holders": 230257,
-    "top10": 36.47,
-    "symbol": "USELESS",
-    "danger": false
-   }
-  },
   "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": {
    "ts": 1792667400.5298429,
    "a": {
@@ -688,9 +658,31 @@
     "symbol": "KIMCHIBULL",
     "danger": false
    }
+  },
+  "GWe3TNg1UPxeaSazxK8U49PDAqXCaX9Jc8zbttFLpump": {
+   "ts": 1792668506.062229,
+   "a": {
+    "score": 50,
+    "liq": 62336.75,
+    "holders": 10174,
+    "top10": 21.05,
+    "symbol": "COMPUTE",
+    "danger": false
+   }
+  },
+  "Dz9mQ9NzkBcCsuGPFJ3r1bS4wgqKMHBPiVuniW8Mbonk": {
+   "ts": 1792668506.062229,
+   "a": {
+    "score": 60,
+    "liq": 4051650.78,
+    "holders": 230279,
+    "top10": 36.47,
+    "symbol": "USELESS",
+    "danger": false
+   }
   }
  },
  "halted": false,
- "tg_offset": 872774974,
+ "tg_offset": 872774977,
  "await": null
 }
