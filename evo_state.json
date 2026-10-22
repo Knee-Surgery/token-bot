@@ -502,7 +502,33 @@
    "reason": "",
    "paper_usd": 9.718640093786636,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": {
+     "name": "KIMCHIBULL",
+     "entry_price": 0.003263,
+     "entry_liq": 175052.58,
+     "ts": 1792681507.342795,
+     "cost_usd": 5.041031652989449,
+     "size_tokens": 1544.9070343210083,
+     "score": 10,
+     "holders": 14158,
+     "top10": 1.67,
+     "tp": 11.03,
+     "sl": 3.0,
+     "hold": 15,
+     "page_id": "40193233-c104-81c7-aff4-fd78511c7af7",
+     "feat": {
+      "m5": 6.91,
+      "h1": 0.25,
+      "liq": 175052.58,
+      "vol_h1": 273048.93,
+      "txns": 977,
+      "holders": 14158,
+      "top10": 1.67,
+      "score": 10
+     }
+    }
+   },
    "closed": [
     {
      "mint": "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump",
@@ -524,7 +550,8 @@
     }
    ],
    "cooldown": {
-    "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": 1792680851.5802946
+    "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": 1792680851.5802946,
+    "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": 1792681507.342795
    },
    "created": 1792680720.8613791,
    "val_start": 0
@@ -674,17 +701,6 @@
     "danger": false
    }
   },
-  "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": {
-   "ts": 1792671315.2698896,
-   "a": {
-    "score": 20,
-    "liq": 256594.16,
-    "holders": 11022,
-    "top10": 1.71,
-    "symbol": "KIMCHIBULL",
-    "danger": false
-   }
-  },
   "33jENUQnjoitkMFpvNJcSHyLAHFWJuHwT6E3E8CNpump": {
    "ts": 1792679198.5370734,
    "a": {
@@ -716,17 +732,6 @@
     "top10": 36.47,
     "symbol": "USELESS",
     "danger": false
-   }
-  },
-  "nB41BqzvvFoRAus2x3WCv55jpvyvpWLwV4GRGRMWwdw": {
-   "ts": 1792679198.5370734,
-   "a": {
-    "score": 15,
-    "liq": 329792.98,
-    "holders": 2304,
-    "top10": 81.22,
-    "symbol": "ALLOX",
-    "danger": true
    }
   },
   "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump": {
@@ -804,6 +809,28 @@
     "top10": 71.75,
     "symbol": "DOOD",
     "danger": true
+   }
+  },
+  "nB41BqzvvFoRAus2x3WCv55jpvyvpWLwV4GRGRMWwdw": {
+   "ts": 1792681376.2518127,
+   "a": {
+    "score": 15,
+    "liq": 344544.24,
+    "holders": 2448,
+    "top10": 81.26,
+    "symbol": "ALLOX",
+    "danger": true
+   }
+  },
+  "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": {
+   "ts": 1792681506.5549364,
+   "a": {
+    "score": 10,
+    "liq": 175052.58,
+    "holders": 14158,
+    "top10": 1.67,
+    "symbol": "KIMCHIBULL",
+    "danger": false
    }
   }
  },
