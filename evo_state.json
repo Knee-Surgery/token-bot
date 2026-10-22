@@ -464,17 +464,6 @@
     "danger": false
    }
   },
-  "CMo7GfUhSGXuEfnY7qAzv8hhsV2M2P8GpWqmWikhpump": {
-   "ts": 1792647235.3408535,
-   "a": {
-    "score": 15,
-    "liq": 55029.88,
-    "holders": 13207,
-    "top10": 14.84,
-    "symbol": "CYBER",
-    "danger": false
-   }
-  },
   "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": {
    "ts": 1792661775.0325363,
    "a": {
@@ -573,9 +562,31 @@
     "symbol": "Kimchi",
     "danger": true
    }
+  },
+  "GWe3TNg1UPxeaSazxK8U49PDAqXCaX9Jc8zbttFLpump": {
+   "ts": 1792664167.767099,
+   "a": {
+    "score": 50,
+    "liq": 62113,
+    "holders": 10186,
+    "top10": 21.05,
+    "symbol": "COMPUTE",
+    "danger": false
+   }
+  },
+  "CMo7GfUhSGXuEfnY7qAzv8hhsV2M2P8GpWqmWikhpump": {
+   "ts": 1792664294.1950824,
+   "a": {
+    "score": 15,
+    "liq": 64112.3,
+    "holders": 13404,
+    "top10": 15.08,
+    "symbol": "CYBER",
+    "danger": false
+   }
   }
  },
  "halted": false,
- "tg_offset": 872774970,
+ "tg_offset": 872774974,
  "await": null
 }
