@@ -74,35 +74,9 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.691827815574959,
+   "paper_usd": 11.156873408280125,
    "start_usd": 10.0,
-   "positions": {
-    "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": {
-     "name": "KIMCHIBULL",
-     "entry_price": 0.005358,
-     "entry_liq": 220031.97,
-     "ts": 1792661840.5726998,
-     "cost_usd": 5.714285714285714,
-     "size_tokens": 1066.4960273022984,
-     "score": 20,
-     "holders": 10890,
-     "top10": 1.67,
-     "tp": 6.0,
-     "sl": 3.0,
-     "hold": 10,
-     "page_id": "40193233-c104-81e0-ad0e-da89170fe484",
-     "feat": {
-      "m5": 3.91,
-      "h1": 6.97,
-      "liq": 220031.97,
-      "vol_h1": 220859.42,
-      "txns": 460,
-      "holders": 10890,
-      "top10": 1.67,
-      "score": 20
-     }
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump",
@@ -156,6 +130,24 @@
       "holders": 10709,
       "top10": 1.67,
       "score": 10
+     }
+    },
+    {
+     "mint": "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump",
+     "pnl_pct": 8.13829787234043,
+     "pnl_usd": 0.4650455927051675,
+     "win": true,
+     "why": "take-profit",
+     "ts": 1792662330.0550861,
+     "feat": {
+      "m5": 3.91,
+      "h1": 6.97,
+      "liq": 220031.97,
+      "vol_h1": 220859.42,
+      "txns": 460,
+      "holders": 10890,
+      "top10": 1.67,
+      "score": 20
      }
     }
    ],
@@ -342,23 +334,17 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.87450562823243,
    "start_usd": 10.0,
-   "positions": {
-    "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": {
-     "name": "OA",
-     "entry_price": 0.01824,
-     "entry_liq": 385890.83,
-     "ts": 1792661970.1018748,
-     "cost_usd": 1.6515276630883569,
-     "size_tokens": 90.54427977458097,
-     "score": 35,
-     "holders": 8021,
-     "top10": 2.22,
-     "tp": 14.61,
-     "sl": 2.38,
-     "hold": 33,
-     "page_id": "40193233-c104-81d5-aad6-fddf2cd8c39c",
+   "positions": {},
+   "closed": [
+    {
+     "mint": "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump",
+     "pnl_pct": -7.598684210526317,
+     "pnl_usd": -0.12549437176756922,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792662330.9755316,
      "feat": {
       "m5": 3.16,
       "h1": 9.05,
@@ -370,8 +356,7 @@
       "score": 35
      }
     }
-   },
-   "closed": [],
+   ],
    "cooldown": {
     "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": 1792661970.1018748
    },
