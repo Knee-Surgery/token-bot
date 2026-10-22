@@ -81,9 +81,9 @@
    "notes": [
     "seed"
    ],
-   "status": "testing",
-   "reason": "",
-   "paper_usd": 9.577142369830565,
+   "status": "retired",
+   "reason": "drawdown -3.07 USD",
+   "paper_usd": 6.933828334917237,
    "start_usd": 10.0,
    "positions": {},
    "closed": [
@@ -124,11 +124,31 @@
       "score": 0,
       "age": 88.23412109781901
      }
+    },
+    {
+     "mint": "CQ4FfF2qkzDTuK23hpKHAgSWYAkRkmaU3yqFvjBhpump",
+     "pnl_pct": -110.40094979647218,
+     "pnl_usd": -2.643314034913327,
+     "win": false,
+     "why": "liquidity collapse",
+     "ts": 1792694690.7848408,
+     "feat": {
+      "m5": 16.67,
+      "h1": 58.92,
+      "liq": 33139.91,
+      "vol_h1": 602635.9,
+      "txns": 2190,
+      "holders": 1337,
+      "top10": 10.71,
+      "score": 25,
+      "age": 85.05818328857421
+     }
     }
    ],
    "cooldown": {
     "HfWDdM3mLB8Qjw9jTRKV7sYBmu5FdX3LrQWa2d9rpump": 1792693910.7870402,
-    "66PcGP5fjGKr1ds1QKkKP2dt5cua319J3HZtdqEhpump": 1792693980.8521242
+    "66PcGP5fjGKr1ds1QKkKP2dt5cua319J3HZtdqEhpump": 1792693980.8521242,
+    "CQ4FfF2qkzDTuK23hpKHAgSWYAkRkmaU3yqFvjBhpump": 1792694577.402096
    },
    "created": 1792693862.4008965,
    "val_start": 0
@@ -188,9 +208,10 @@
       "score": 20,
       "age": 166.6609461263021
      },
-     "peak_price": 0.0002997,
-     "last_price": 0.0002947,
-     "last_patch": 1792694105.0575829
+     "peak_price": 0.0003037,
+     "last_price": 0.000303,
+     "last_patch": 1792694774.2604725,
+     "armed": true
     }
    },
    "closed": [
@@ -276,9 +297,10 @@
       "score": 20,
       "age": 166.6609461263021
      },
-     "peak_price": 0.0002997,
-     "last_price": 0.0002947,
-     "last_patch": 1792694105.3943381
+     "peak_price": 0.0003037,
+     "last_price": 0.000303,
+     "last_patch": 1792694774.648815,
+     "armed": true
     }
    },
    "closed": [
@@ -376,9 +398,76 @@
    "cooldown": {},
    "created": 1792693862.4010205,
    "val_start": 0
+  },
+  "v7": {
+   "id": "v7",
+   "gen": 0,
+   "parent": null,
+   "genome": {
+    "tp": 90.94,
+    "sl": 7.3,
+    "hold": 2,
+    "trail": 12.14,
+    "size_frac": 0.41,
+    "target_usd": 0.52,
+    "max_age_min": 613,
+    "min_holders": 423,
+    "max_top10": 13.17,
+    "min_liq": 24824.72,
+    "min_score": 0,
+    "min_m5": 0,
+    "max_m5": 72.39,
+    "min_txns": 0,
+    "min_vol_h1": 73387.35
+   },
+   "notes": [
+    "random exploration"
+   ],
+   "status": "testing",
+   "reason": "",
+   "paper_usd": 10.0,
+   "start_usd": 10.0,
+   "positions": {
+    "Baw61KXAJk4MMnNJPBa87S8F77oNhMy7gQ63S8SLpump": {
+     "name": "SHAVCOIN",
+     "entry_price": 0.003548,
+     "entry_liq": 172062.8,
+     "ts": 1792694762.9701338,
+     "cost_usd": 4.1,
+     "size_tokens": 1155.5806087936865,
+     "score": 10,
+     "holders": 8630,
+     "top10": 1.2,
+     "tp": 90.94,
+     "sl": 7.3,
+     "hold": 2,
+     "trail": 12.14,
+     "page_id": "40193233-c104-819f-8a8c-c72a01df0130",
+     "feat": {
+      "m5": 2.27,
+      "h1": 164,
+      "liq": 172062.8,
+      "vol_h1": 874424.07,
+      "txns": 117,
+      "holders": 8630,
+      "top10": 1.2,
+      "score": 10,
+      "age": 427.30149509277345
+     },
+     "peak_price": 0.003604,
+     "last_price": 0.003604,
+     "last_patch": 1792694774.943087
+    }
+   },
+   "closed": [],
+   "cooldown": {
+    "Baw61KXAJk4MMnNJPBa87S8F77oNhMy7gQ63S8SLpump": 1792694762.9701338
+   },
+   "created": 1792694691.51337,
+   "val_start": 0
   }
  },
- "next_id": 7,
+ "next_id": 8,
  "acache": {
   "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": {
    "ts": 1792693862.7773151,
@@ -500,9 +589,53 @@
     "symbol": "NVIDIA",
     "danger": true
    }
+  },
+  "CQ4FfF2qkzDTuK23hpKHAgSWYAkRkmaU3yqFvjBhpump": {
+   "ts": 1792694575.4909973,
+   "a": {
+    "score": 25,
+    "liq": 33139.91,
+    "holders": 1337,
+    "top10": 10.71,
+    "symbol": "KIMCHAI",
+    "danger": false
+   }
+  },
+  "2wP6cRR3N9SBBdTpYGToyqVzLBXaksXZhGBQ9vC382LF": {
+   "ts": 1792694691.5925725,
+   "a": {
+    "score": 0,
+    "liq": 18703.45,
+    "holders": 68,
+    "top10": 10.39,
+    "symbol": "CARD",
+    "danger": true
+   }
+  },
+  "9jc2HVkwnKTjM67Xiu6PudY8TZC9iftvjZ4scszDJH8D": {
+   "ts": 1792694760.0897055,
+   "a": {
+    "score": 0,
+    "liq": 19392.35,
+    "holders": 63,
+    "top10": 4.71,
+    "symbol": "CARD",
+    "danger": true
+   }
+  },
+  "Baw61KXAJk4MMnNJPBa87S8F77oNhMy7gQ63S8SLpump": {
+   "ts": 1792694760.0897055,
+   "a": {
+    "score": 10,
+    "liq": 172062.8,
+    "holders": 8630,
+    "top10": 1.2,
+    "symbol": "SHAVCOIN",
+    "danger": false
+   }
   }
  },
  "halted": false,
- "tg_offset": 872775004,
+ "tg_offset": 872775010,
  "await": null
 }
