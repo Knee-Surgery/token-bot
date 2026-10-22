@@ -5,6 +5,8 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch:
 
+# one run at a time; the next scheduled run waits and starts as soon as this one ends,
+# so monitoring is close to continuous (short holds need it)
 concurrency:
   group: token-bot
   cancel-in-progress: false
@@ -15,7 +17,7 @@ permissions:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 7
+    timeout-minutes: 9
     steps:
       - uses: actions/checkout@v4
 
@@ -26,7 +28,7 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Run bot cycle (about 4 minutes)
+      - name: Run bot cycle (about 5 minutes)
         run: python run_once.py
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -36,10 +38,10 @@ jobs:
           EVO_MODE: "true"
           EVO_POP: "6"
           EVO_START_USD: "10"
-          LOOP_SECONDS: "240"
-          MIN_HOLDERS: "1000"
-          MAX_TOP10_PCT: "20"
+          LOOP_SECONDS: "290"
           SCALP_TARGET_USD: "0.20"
+          # lower this (for example "0.5") to let big-target variants survive on profit instead of win rate
+          EVO_TARGET_WINRATE: "0.9"
 
       - name: Save state
         if: always()
