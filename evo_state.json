@@ -72,37 +72,11 @@
    "notes": [
     "seed"
    ],
-   "status": "testing",
-   "reason": "",
-   "paper_usd": 10.86952803973715,
+   "status": "retired",
+   "reason": "win rate 40% after 10 trades",
+   "paper_usd": 10.70349592584872,
    "start_usd": 10.0,
-   "positions": {
-    "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": {
-     "name": "OA",
-     "entry_price": 0.01726,
-     "entry_liq": 380572.01,
-     "ts": 1792679199.667094,
-     "cost_usd": 5.714285714285714,
-     "size_tokens": 331.07101473266016,
-     "score": 20,
-     "holders": 8359,
-     "top10": 2.13,
-     "tp": 6.0,
-     "sl": 3.0,
-     "hold": 10,
-     "page_id": "40193233-c104-81c4-9664-fac0d212d0cf",
-     "feat": {
-      "m5": 2.02,
-      "h1": 1.67,
-      "liq": 380572.01,
-      "vol_h1": 190437.11,
-      "txns": 210,
-      "holders": 8359,
-      "top10": 2.13,
-      "score": 20
-     }
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump",
@@ -263,6 +237,24 @@
       "txns": 1070,
       "holders": 11022,
       "top10": 1.71,
+      "score": 20
+     }
+    },
+    {
+     "mint": "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump",
+     "pnl_pct": -2.9055619930475096,
+     "pnl_usd": -0.16603211388842912,
+     "win": false,
+     "why": "max hold time",
+     "ts": 1792680719.9007359,
+     "feat": {
+      "m5": 2.02,
+      "h1": 1.67,
+      "liq": 380572.01,
+      "vol_h1": 190437.11,
+      "txns": 210,
+      "holders": 8359,
+      "top10": 2.13,
       "score": 20
      }
     }
@@ -480,9 +472,65 @@
    },
    "created": 1792611233.4709876,
    "val_start": 0
+  },
+  "v7": {
+   "id": "v7",
+   "gen": 1,
+   "parent": "v2",
+   "genome": {
+    "tp": 11.03,
+    "sl": 3.0,
+    "hold": 15,
+    "target_usd": 0.43,
+    "min_score": 5,
+    "min_m5": 0.5,
+    "max_m5": 7.0,
+    "min_txns": 30,
+    "min_vol_h1": 125000.0,
+    "min_liq": 13335.64,
+    "min_holders": 0,
+    "max_top10": 100
+   },
+   "notes": [
+    "losses were stop-outs: stricter entry (score+5, lower max 5m move, volume x1.25)",
+    "trying a higher take-profit (x1.8), same stop-loss",
+    "jitter target_usd",
+    "jitter min_liq",
+    "jitter max_top10"
+   ],
+   "status": "testing",
+   "reason": "",
+   "paper_usd": 9.718640093786636,
+   "start_usd": 10.0,
+   "positions": {},
+   "closed": [
+    {
+     "mint": "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump",
+     "pnl_pct": -5.5813953488372015,
+     "pnl_usd": -0.2813599062133642,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792680938.4480262,
+     "feat": {
+      "m5": 2.65,
+      "h1": 1.81,
+      "liq": 379377.9,
+      "vol_h1": 152201.39,
+      "txns": 241,
+      "holders": 8359,
+      "top10": 2.13,
+      "score": 20
+     }
+    }
+   ],
+   "cooldown": {
+    "EhuiZVks9ExNTQUg2ZLeW4SQUMAGiwwhK73rASzBpump": 1792680851.5802946
+   },
+   "created": 1792680720.8613791,
+   "val_start": 0
   }
  },
- "next_id": 7,
+ "next_id": 8,
  "acache": {
   "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": {
    "ts": 1792611126.9060614,
@@ -615,39 +663,6 @@
     "danger": false
    }
   },
-  "CMo7GfUhSGXuEfnY7qAzv8hhsV2M2P8GpWqmWikhpump": {
-   "ts": 1792666414.11577,
-   "a": {
-    "score": 15,
-    "liq": 61358.41,
-    "holders": 13476,
-    "top10": 15.08,
-    "symbol": "CYBER",
-    "danger": false
-   }
-  },
-  "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump": {
-   "ts": 1792667466.9931095,
-   "a": {
-    "score": 50,
-    "liq": 151490.79,
-    "holders": 15137,
-    "top10": 20.16,
-    "symbol": "PHP",
-    "danger": false
-   }
-  },
-  "JAFqCQSpy5YinrsmixWSMaD7jTn4MytJRkyWvYPnY6ea": {
-   "ts": 1792667466.9931095,
-   "a": {
-    "score": 0,
-    "liq": 136405.88,
-    "holders": 4798,
-    "top10": 17.52,
-    "symbol": "PANGEA",
-    "danger": true
-   }
-  },
   "GWe3TNg1UPxeaSazxK8U49PDAqXCaX9Jc8zbttFLpump": {
    "ts": 1792668506.062229,
    "a": {
@@ -757,9 +772,42 @@
     "symbol": "swordcat",
     "danger": false
    }
+  },
+  "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump": {
+   "ts": 1792680720.8614106,
+   "a": {
+    "score": 40,
+    "liq": 110914.41,
+    "holders": 15393,
+    "top10": 19.32,
+    "symbol": "PHP",
+    "danger": false
+   }
+  },
+  "JAFqCQSpy5YinrsmixWSMaD7jTn4MytJRkyWvYPnY6ea": {
+   "ts": 1792680720.8614106,
+   "a": {
+    "score": 0,
+    "liq": 117478.8,
+    "holders": 4938,
+    "top10": 16.96,
+    "symbol": "PANGEA",
+    "danger": true
+   }
+  },
+  "CMo7GfUhSGXuEfnY7qAzv8hhsV2M2P8GpWqmWikhpump": {
+   "ts": 1792680785.7970626,
+   "a": {
+    "score": 15,
+    "liq": 75450.59,
+    "holders": 14200,
+    "top10": 15.4,
+    "symbol": "CYBER",
+    "danger": false
+   }
   }
  },
  "halted": false,
- "tg_offset": 872774986,
+ "tg_offset": 872774991,
  "await": null
 }
