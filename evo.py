@@ -44,11 +44,11 @@ COOLDOWN_MIN = 30
 ACACHE_TTL_MIN = 30
 
 SCHEMA = 2  # bump to restart all variants from fresh seeds when the rules change
-BOUNDS = {"tp": (5, 15), "sl": (1.5, 8), "hold": (3, 60), "min_score": (0, 90), "min_m5": (0, 3),
+BOUNDS = {"tp": (5, 40), "sl": (1.5, 8), "hold": (3, 180), "target_usd": (0.2, 1.5), "min_score": (0, 90), "min_m5": (0, 3),
           "max_m5": (3, 20), "min_txns": (5, 200), "min_vol_h1": (5000, 500000),
           "min_liq": (10000, 200000), "min_holders": (0, 10000), "max_top10": (10, 100)}
 INTS = {"hold", "min_score", "min_txns", "min_holders"}
-LOG_KEYS = {"min_vol_h1", "min_liq", "min_txns", "min_holders"}
+LOG_KEYS = {"min_vol_h1", "min_liq", "min_txns", "min_holders", "tp", "target_usd"}
 
 SEEDS = [  # simple on purpose: a few filters each; evolution adds or drops conditions from here
     {"tp": 5, "sl": 3, "hold": 8, "min_score": 0, "min_m5": 0.5, "max_m5": 8, "min_txns": 5,
@@ -97,7 +97,7 @@ def save(S: dict):
 def clamp(gn: dict) -> dict:
     out = {}
     for k, (lo, hi) in BOUNDS.items():
-        x = min(hi, max(lo, float(gn[k])))
+        x = min(hi, max(lo, float(gn.get(k, lo))))
         out[k] = int(round(x)) if k in INTS else round(x, 2)
     out["sl"] = min(out["sl"], round(1.5 * out["tp"], 2))
     if out["max_m5"] < out["min_m5"] + 1:
@@ -108,7 +108,7 @@ def clamp(gn: dict) -> dict:
 def random_genome() -> dict:
     gn = {}
     for k, (lo, hi) in BOUNDS.items():
-        gn[k] = math.exp(random.uniform(math.log(max(lo, 1)), math.log(hi))) if k in LOG_KEYS else random.uniform(lo, hi)
+        gn[k] = math.exp(random.uniform(math.log(lo if lo > 0 else 1), math.log(hi))) if k in LOG_KEYS else random.uniform(lo, hi)
     return clamp(gn)
 
 
@@ -159,8 +159,15 @@ def mutate(parent: dict, S: dict):
         elif top == "liquidity collapse":
             gn["min_liq"] *= 1.5
             notes.append("losses were liquidity collapses: min liquidity x1.5")
+    if random.random() < 0.3:  # explore a higher take-profit; stop-loss stays as is, hold time scales with it
+        f = random.uniform(1.3, 2.0)
+        gn["tp"] = float(gn["tp"]) * f
+        gn["hold"] = float(gn["hold"]) * f ** 0.7
+        if random.random() < 0.5:
+            gn["target_usd"] = float(gn.get("target_usd", TARGET_USD)) * f
+        notes.append(f"trying a higher take-profit (x{f:.1f}), same stop-loss")
     for k in random.sample(list(BOUNDS), random.randint(1, 3)):
-        gn[k] = float(gn[k]) * random.uniform(0.8, 1.2)
+        gn[k] = float(gn.get(k, BOUNDS[k][0])) * random.uniform(0.8, 1.2)
         notes.append(f"jitter {k}")
     return clamp(gn), notes
 
@@ -391,11 +398,12 @@ async def scan(g, S, pc, events):
                 continue
             if gn["max_top10"] < 100 and (a["top10"] is None or a["top10"] > gn["max_top10"]):
                 continue
-            need_usd = TARGET_USD / ((gn["tp"] - COST_PCT) / 100)
+            target = max(TARGET_USD, float(gn.get("target_usd", TARGET_USD)))  # variant's own $ target, never below $0.20
+            need_usd = target / ((gn["tp"] - COST_PCT) / 100)
             size_usd = min(need_usd, v["paper_usd"] * BANKROLL_FRAC)
             exp_net = size_usd * (gn["tp"] - COST_PCT) / 100
-            if exp_net < TARGET_USD * 0.9:
-                continue  # bankroll can't reach the $0.20 minimum at this TP
+            if exp_net < target * 0.9:
+                continue  # bankroll can't reach this variant's $ target at its TP
             name = auto.token_name(a, mint)
             size_tokens = size_usd / price
             ts = time.time()
