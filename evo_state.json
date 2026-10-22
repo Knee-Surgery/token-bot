@@ -663,17 +663,6 @@
     "danger": false
    }
   },
-  "GWe3TNg1UPxeaSazxK8U49PDAqXCaX9Jc8zbttFLpump": {
-   "ts": 1792668506.062229,
-   "a": {
-    "score": 50,
-    "liq": 62336.75,
-    "holders": 10174,
-    "top10": 21.05,
-    "symbol": "COMPUTE",
-    "danger": false
-   }
-  },
   "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn": {
    "ts": 1792671315.2698896,
    "a": {
@@ -740,39 +729,6 @@
     "danger": true
    }
   },
-  "Ecmsss7ijkFgaWoXR7YN4zmiYPZRBKwRwddFc4ymmmCM": {
-   "ts": 1792679198.5370734,
-   "a": {
-    "score": 15,
-    "liq": 356688.98,
-    "holders": 2300,
-    "top10": 81.11,
-    "symbol": "SO",
-    "danger": true
-   }
-  },
-  "DvjbEsdca43oQcw2h3HW1CT7N3x5vRcr3QrvTUHnXvgV": {
-   "ts": 1792679266.66211,
-   "a": {
-    "score": 35,
-    "liq": 601297.93,
-    "holders": 221238,
-    "top10": 71.57,
-    "symbol": "DOOD",
-    "danger": true
-   }
-  },
-  "5tCju6YNxHq5zrA6tGndr6F7TK42mpUFmeE31cSFpump": {
-   "ts": 1792679266.66211,
-   "a": {
-    "score": 50,
-    "liq": 153131.66,
-    "holders": 36953,
-    "top10": 23.55,
-    "symbol": "swordcat",
-    "danger": false
-   }
-  },
   "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump": {
    "ts": 1792680720.8614106,
    "a": {
@@ -804,6 +760,50 @@
     "top10": 15.4,
     "symbol": "CYBER",
     "danger": false
+   }
+  },
+  "Ecmsss7ijkFgaWoXR7YN4zmiYPZRBKwRwddFc4ymmmCM": {
+   "ts": 1792681032.2642581,
+   "a": {
+    "score": 15,
+    "liq": 367355.03,
+    "holders": 2418,
+    "top10": 81.14,
+    "symbol": "SO",
+    "danger": true
+   }
+  },
+  "5tCju6YNxHq5zrA6tGndr6F7TK42mpUFmeE31cSFpump": {
+   "ts": 1792681096.840558,
+   "a": {
+    "score": 50,
+    "liq": 155367.26,
+    "holders": 36969,
+    "top10": 23.55,
+    "symbol": "swordcat",
+    "danger": false
+   }
+  },
+  "GWe3TNg1UPxeaSazxK8U49PDAqXCaX9Jc8zbttFLpump": {
+   "ts": 1792681161.5759866,
+   "a": {
+    "score": 40,
+    "liq": 76209.34,
+    "holders": 10265,
+    "top10": 20.56,
+    "symbol": "COMPUTE",
+    "danger": false
+   }
+  },
+  "DvjbEsdca43oQcw2h3HW1CT7N3x5vRcr3QrvTUHnXvgV": {
+   "ts": 1792681161.5759866,
+   "a": {
+    "score": 35,
+    "liq": 603147.15,
+    "holders": 221237,
+    "top10": 71.75,
+    "symbol": "DOOD",
+    "danger": true
    }
   }
  },
