@@ -74,7 +74,7 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 11.156873408280125,
+   "paper_usd": 10.78901316791338,
    "start_usd": 10.0,
    "positions": {},
    "closed": [
@@ -149,12 +149,30 @@
       "top10": 1.67,
       "score": 20
      }
+    },
+    {
+     "mint": "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump",
+     "pnl_pct": -6.437554206418037,
+     "pnl_usd": -0.367860240366745,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792665142.8738837,
+     "feat": {
+      "m5": 0.87,
+      "h1": 4.19,
+      "liq": 229636.48,
+      "vol_h1": 249440.56,
+      "txns": 579,
+      "holders": 10914,
+      "top10": 1.67,
+      "score": 20
+     }
     }
    ],
    "cooldown": {
     "nxPqZ4F7ux8Vph5NFu25rEP6Kx9Gr1U6Fmj36Rjpump": 1792611236.1713085,
     "Cbkg5w7V7W2J2sUmecnyN825CbvwvXwasfhduVtNpump": 1792630372.9295871,
-    "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": 1792661840.5726998
+    "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": 1792665098.1344137
    },
    "created": 1792611233.4709148,
    "val_start": 0
@@ -475,17 +493,6 @@
     "danger": false
    }
   },
-  "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": {
-   "ts": 1792661840.059417,
-   "a": {
-    "score": 20,
-    "liq": 220031.97,
-    "holders": 10890,
-    "top10": 1.67,
-    "symbol": "KIMCHIBULL",
-    "danger": false
-   }
-  },
   "Dz9mQ9NzkBcCsuGPFJ3r1bS4wgqKMHBPiVuniW8Mbonk": {
    "ts": 1792663746.6621144,
    "a": {
@@ -583,6 +590,39 @@
     "top10": 15.08,
     "symbol": "CYBER",
     "danger": false
+   }
+  },
+  "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": {
+   "ts": 1792665097.1631494,
+   "a": {
+    "score": 20,
+    "liq": 229636.48,
+    "holders": 10914,
+    "top10": 1.67,
+    "symbol": "KIMCHIBULL",
+    "danger": false
+   }
+  },
+  "CTPoyCwkjMvoJwU4xvZZqoD8tiYk6yDchySiN5gGpump": {
+   "ts": 1792665164.5909116,
+   "a": {
+    "score": 60,
+    "liq": 404100.55,
+    "holders": 101818,
+    "top10": 24.24,
+    "symbol": "fone",
+    "danger": false
+   }
+  },
+  "JAFqCQSpy5YinrsmixWSMaD7jTn4MytJRkyWvYPnY6ea": {
+   "ts": 1792665295.6679754,
+   "a": {
+    "score": 0,
+    "liq": 133411.42,
+    "holders": 4784,
+    "top10": 17.49,
+    "symbol": "PANGEA",
+    "danger": true
    }
   }
  },
