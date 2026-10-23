@@ -40,11 +40,7 @@ TARGET_WR = float(os.getenv("EVO_TARGET_WINRATE", "0.35"))
 REQ_WR = min(TARGET_WR, PROVEN_WR)  # win rate every check demands (lower either setting to relax it)
 CHECK_1 = int(os.getenv("EVO_CHECK_1", "5"))        # first profitability check (closed trades)
 EVAL_AFTER = CHECK_2 = int(os.getenv("EVO_CHECK_2", "10"))  # second check, same requirements; passing it graduates to validation
-MAX_PER_TOKEN = int(os.getenv("EVO_MAX_PER_TOKEN", "7"))    # max bots in one token at once (diversification, Notion load)
-EXIT_GAP_SL = float(os.getenv("EVO_EXIT_GAP_SL", "1.0"))        # bots in one token: stop-losses at least this far apart
-EXIT_GAP_TRAIL = float(os.getenv("EVO_EXIT_GAP_TRAIL", "3"))    # ...or trailing stops at least this far apart
-COPY_ON = os.getenv("EVO_COPY", "true").lower() == "true"       # idle bots copy fresh entries of proven bots
-COPY_WINDOW_MIN = float(os.getenv("EVO_COPY_WINDOW_MIN", "15"))  # only copy entries made in the last N minutes
+MAX_PER_TOKEN = int(os.getenv("EVO_MAX_PER_TOKEN", "3"))    # max bots in one token at once (diversification, Notion load)
 KEEP_RETIRED = max(150, POP // 2)
 VAL_TRADES = int(os.getenv("EVO_VAL_TRADES", "30"))
 VAL_CHECK = int(os.getenv("EVO_VAL_CHECK", "5"))     # early check inside validation (same requirements)
@@ -653,7 +649,7 @@ async def monitor(g, S, pc, events, notes_out):
                 pnl_usd = pos["cost_usd"] * net / 100
                 v["paper_usd"] += pnl_usd
                 v["closed"].append({"mint": mint, "pnl_pct": net, "pnl_usd": pnl_usd, "win": net > 0,
-                                    "why": why, "ts": now, "feat": pos.get("feat"), "copy": pos.get("copied_from")})
+                                    "why": why, "ts": now, "feat": pos.get("feat")})
                 del v["positions"][mint]
                 # overall running total across every bot (what the journal's P&L chart plots)
                 S["total_pnl"] = cum = (S.get("total_pnl") or 0.0) + pnl_usd
@@ -747,117 +743,55 @@ async def scan(g, S, pc, events):
                 for k in sorted(rs, key=rs.get)[:10]:
                     del rs[k]
             continue
-        held = holders(S, mint)
+        slots = MAX_PER_TOKEN - sum(1 for vv in S["variants"].values() if mint in vv["positions"])
+        if slots <= 0:
+            continue
+
+        price = float(p["priceUsd"])
+        liq = float((p.get("liquidity") or {}).get("usd", 0))
+        slip = LAUNCH_SLIP if (age is not None and age < 15) else 0.0
+        fill = price * (1 + slip / 100)
         random.shuffle(wanting)
         for v in wanting:
-            if len(held) >= MAX_PER_TOKEN:
+            if slots <= 0:
                 break
             gn = v["genome"]
             if a["holders"] < gn["min_holders"] or a["top10"] > gn["max_top10"] or (a["score"] or 0) < gn["min_score"]:
                 continue
-            if await open_position(g, S, v, mint, p, a, age, held, free, events):
-                held = holders(S, mint)
-
-    await copy_trades(g, S, pc, free, events)
-
-
-def holders(S, mint) -> list:
-    """Open positions in this token, across all bots."""
-    return [vv["positions"][mint] for vv in S["variants"].values() if mint in vv["positions"]]
-
-
-def exits_differ(gn: dict, pos: dict) -> bool:
-    """Two bots in one token must leave at different points on the way down, so a dump doesn't stop them all out at
-    the same price: stop-loss at least EXIT_GAP_SL points apart, or trailing stop at least EXIT_GAP_TRAIL apart."""
-    return abs(gn["sl"] - pos["sl"]) >= EXIT_GAP_SL or abs(gn["trail"] - pos["trail"]) >= EXIT_GAP_TRAIL
-
-
-def leader_ok(v) -> bool:
-    """A bot worth copying: proven (passed the profit checks) and still meeting them."""
-    return v["status"] != "retired" and v.get("proven") and len(v["closed"]) >= CHECK_1 and meets(v["closed"])[0]
-
-
-async def open_position(g, S, v, mint, p, a, age, held, free, events, copied_from=None) -> bool:
-    """Open a paper position for bot v unless the token is full, its exits match a bot already in the token, or the
-    position is too small to reach its dollar target. Returns True if it opened."""
-    gn = v["genome"]
-    if len(held) >= MAX_PER_TOKEN or not all(exits_differ(gn, pos) for pos in held):
-        return False
-    size_usd = v["paper_usd"] * gn["size_frac"]
-    exp_net = size_usd * (gn["tp"] - COST_PCT) / 100
-    target = max(TARGET_USD, float(gn.get("target_usd", TARGET_USD)))
-    if exp_net < target * 0.9:
-        return False  # position too small to net the variant's dollar target at its TP
-    price = float(p["priceUsd"])
-    liq = float((p.get("liquidity") or {}).get("usd", 0))
-    slip = LAUNCH_SLIP if (age is not None and age < 15) else 0.0
-    fill = price * (1 + slip / 100)
-    name = auto.token_name(a, mint)
-    size_tokens = size_usd / fill
-    ts = time.time()
-    copy_note = f" | copy of {copied_from}" if copied_from else ""
-    page_id, _ = await asyncio.gather(auto.n_create(g, auto.DB_OPEN, {
-        "Token": auto._title(name), "Mint": auto._text(mint), "Entry Time": auto._date(ts),
-        "Entry Price (USD)": auto._num(fill), "Current Price (USD)": auto._num(price),
-        "Size (Tokens)": auto._num(size_tokens), "Cost Basis (USD)": auto._num(size_usd),
-        "Current Value (USD)": auto._num(size_usd), "Unrealised PnL (USD)": auto._num(0),
-        "Unrealised PnL %": auto._num(0), "Score": auto._num(a["score"]),
-        "Holders": auto._num(a["holders"]), "Top 10 %": auto._num(a["top10"]),
-        "Mode": auto._sel("Paper"),
-        "Notes": auto._text(f"Variant {v['id']} gen{v['gen']} | age "
-                            f"{'?' if age is None else f'{age:.0f}m'} | TP {gn['tp']}% SL {gn['sl']}% "
-                            f"trail {gn['trail']}% hold {gn['hold']}m{copy_note}")}),
-        auto.n_create(g, auto.DB_EVENTS, {
-        "Event": auto._title(f"Entry {name} [{v['id']}]"), "Type": auto._sel("Entry"),
-        "Token": auto._text(name), "Time": auto._date(ts), "Price (USD)": auto._num(fill),
-        "Mode": auto._sel("Paper")}))
-    v["positions"][mint] = {"name": name, "entry_price": fill, "entry_liq": liq, "ts": ts,
-                            "cost_usd": size_usd, "size_tokens": size_tokens, "score": a["score"],
-                            "holders": a["holders"], "top10": a["top10"], "tp": gn["tp"], "sl": gn["sl"],
-                            "hold": gn["hold"], "trail": gn["trail"], "page_id": page_id,
-                            "lock_pull": gn["lock_pull"], "stall": gn["stall"],
-                            "feat": features(p, a, age), "peak_price": fill, "last_price": price,
-                            "copied_from": copied_from}
-    v["cooldown"][mint] = ts
-    if v in free:
-        free.remove(v)
-    if NOTIFY_TRADES:
-        events.append(f"[{v['id']}] opened {name} ~${size_usd:.2f}{copy_note}")
-    return True
-
-
-async def copy_trades(g, S, pc, free, events):
-    """Copy trading: when a proven bot has entered a token in the last COPY_WINDOW_MIN minutes, idle bots follow it
-    into the same token (skipping their own entry filters, which is the point of copying), each with its own exit
-    settings. The per-token cap, the different-exits rule, the rug check and the dollar-target sizing still apply."""
-    if not COPY_ON or not free:
-        return
-    now = time.time()
-    fresh = [(v, m, pos) for v in S["variants"].values() if leader_ok(v)
-             for m, pos in v["positions"].items() if now - pos["ts"] <= COPY_WINDOW_MIN * 60]
-    fresh.sort(key=lambda x: -fitness(x[0]))  # best leaders get followers first
-    for leader, mint, _ in fresh:
-        held = holders(S, mint)
-        if len(held) >= MAX_PER_TOKEN or not free:
-            continue
-        ac = S["acache"].get(mint)
-        p = await get_pair(g, mint, pc, 30)
-        if not ac or not p or not p.get("priceUsd"):
-            continue
-        a, age = ac["a"], pair_age_min(p, now)
-        if not rug_ok(a, p)[0]:
-            continue  # the token turned risky since the leader bought: don't follow
-        followers = [v for v in free if now - v["cooldown"].get(mint, 0) > COOLDOWN_MIN * 60]
-        random.shuffle(followers)
-        n = 0
-        for v in followers:
-            if len(held) >= MAX_PER_TOKEN:
-                break
-            if await open_position(g, S, v, mint, p, a, age, held, free, events, copied_from=leader["id"]):
-                held = holders(S, mint)
-                n += 1
-        if n:
-            log.info("copy: %d bot(s) followed %s into %s", n, leader["id"], mint)
+            size_usd = v["paper_usd"] * gn["size_frac"]
+            exp_net = size_usd * (gn["tp"] - COST_PCT) / 100
+            target = max(TARGET_USD, float(gn.get("target_usd", TARGET_USD)))
+            if exp_net < target * 0.9:
+                continue  # position too small to net the variant's dollar target at its TP
+            name = auto.token_name(a, mint)
+            size_tokens = size_usd / fill
+            ts = time.time()
+            page_id, _ = await asyncio.gather(auto.n_create(g, auto.DB_OPEN, {
+                "Token": auto._title(name), "Mint": auto._text(mint), "Entry Time": auto._date(ts),
+                "Entry Price (USD)": auto._num(fill), "Current Price (USD)": auto._num(price),
+                "Size (Tokens)": auto._num(size_tokens), "Cost Basis (USD)": auto._num(size_usd),
+                "Current Value (USD)": auto._num(size_usd), "Unrealised PnL (USD)": auto._num(0),
+                "Unrealised PnL %": auto._num(0), "Score": auto._num(a["score"]),
+                "Holders": auto._num(a["holders"]), "Top 10 %": auto._num(a["top10"]),
+                "Mode": auto._sel("Paper"),
+                "Notes": auto._text(f"Variant {v['id']} gen{v['gen']} | age "
+                                    f"{'?' if age is None else f'{age:.0f}m'} | TP {gn['tp']}% SL {gn['sl']}% "
+                                    f"trail {gn['trail']}% hold {gn['hold']}m")}),
+                auto.n_create(g, auto.DB_EVENTS, {
+                "Event": auto._title(f"Entry {name} [{v['id']}]"), "Type": auto._sel("Entry"),
+                "Token": auto._text(name), "Time": auto._date(ts), "Price (USD)": auto._num(fill),
+                "Mode": auto._sel("Paper")}))
+            v["positions"][mint] = {"name": name, "entry_price": fill, "entry_liq": liq, "ts": ts,
+                                    "cost_usd": size_usd, "size_tokens": size_tokens, "score": a["score"],
+                                    "holders": a["holders"], "top10": a["top10"], "tp": gn["tp"], "sl": gn["sl"],
+                                    "hold": gn["hold"], "trail": gn["trail"], "page_id": page_id,
+                                    "lock_pull": gn["lock_pull"], "stall": gn["stall"],
+                                    "feat": features(p, a, age), "peak_price": fill, "last_price": price}
+            v["cooldown"][mint] = ts
+            free.remove(v)
+            slots -= 1
+            if NOTIFY_TRADES:
+                events.append(f"[{v['id']}] opened {name} ~${size_usd:.2f}")
 
 
 # ---------- reporting ----------

@@ -145,10 +145,7 @@ async def screen(g, S, key, pc):
                 f"• Requirements: win rate {evo.REQ_WR:.0%}+ and net profit\n"
                 f"• Checked after {evo.CHECK_1} trades and again at {evo.CHECK_2}: fail = retired, pass = breeds\n"
                 f"• Pass both = validation on {evo.VAL_TRADES} fresh trades, same requirements\n"
-                f"• Up to {evo.MAX_PER_TOKEN} bots in one token at a time, each with different exits (stop-loss "
-                f"{evo.EXIT_GAP_SL:g}+ pts or trailing stop {evo.EXIT_GAP_TRAIL:g}+ pts apart)\n"
-                + (f"• Copy trading: idle bots follow a proven bot's entry within {evo.COPY_WINDOW_MIN:.0f} min, "
-                   "using their own exits\n" if evo.COPY_ON else "") +
+                f"• Up to {evo.MAX_PER_TOKEN} bots in one token at a time\n"
                 "• Candidates are reported only; nothing goes live automatically")
     return menu_text(S)
 
