@@ -379,6 +379,81 @@ def apply_judgement(S, v, events):
                       f"paper only.\nGenome: {v['genome']}\nPaper fills are optimistic; do not assume live results match.")
 
 
+# ---------- milestone: enough consistently profitable bots -> spread their strategies -> prove it again ----------
+GOAL_BOTS = int(os.getenv("EVO_GOAL_BOTS", "75"))           # consistent bots needed to trigger the milestone
+CONS_TRADES = int(os.getenv("EVO_CONS_TRADES", "20"))       # closed trades a bot needs to count as consistent
+CONS_TOKENS = int(os.getenv("EVO_CONS_TOKENS", "10"))       # ...spread over at least this many different tokens
+PROOF_HOURS = float(os.getenv("EVO_PROOF_HOURS", "48"))     # length of the re-test after strategies are spread
+PROOF_TRADES = int(os.getenv("EVO_PROOF_TRADES", "10"))     # per-bot trades inside the re-test window
+PROOF_TOKENS = int(os.getenv("EVO_PROOF_TOKENS", "5"))
+
+
+def consistent(trades: list, min_trades=CONS_TRADES, min_tokens=CONS_TOKENS) -> bool:
+    """Reliably profitable, not lucky: enough trades over enough different tokens, win rate >= REQ_WR, net profit,
+    and still in profit after removing its single best token."""
+    if len(trades) < min_trades:
+        return False
+    by_token: dict = {}
+    for t in trades:
+        by_token[t["mint"]] = by_token.get(t["mint"], 0.0) + t["pnl_usd"]
+    if len(by_token) < min_tokens or not meets(trades)[0]:
+        return False
+    return sum(by_token.values()) - max(by_token.values()) > 0
+
+
+def consistent_bots(S) -> list:
+    return [v for v in S["variants"].values() if v["status"] != "retired" and consistent(v["closed"])]
+
+
+def milestone(S, events):
+    """Stage 1: GOAL_BOTS bots are consistent -> Telegram alert, every other bot is replaced by a mutated child of a
+    consistent one, and a PROOF_HOURS re-test starts on fresh trades only. Stage 2: the re-test passes (population
+    in profit on the new trades and GOAL_BOTS bots consistent on them) -> 'ready for a live test' alert. A failed
+    re-test resets to stage 1 and evolution carries on. Paper only either way: nothing here trades live."""
+    M = S.setdefault("milestone", {"stage": "searching"})
+    now = time.time()
+    if M["stage"] == "searching":
+        good = consistent_bots(S)
+        M["count"] = len(good)
+        if len(good) < GOAL_BOTS:
+            return
+        good.sort(key=lambda v: -sum(t["pnl_usd"] for t in v["closed"]))
+        replaced = 0
+        for v in [x for x in active(S) if x not in good]:
+            v["status"], v["reason"] = "retired", "replaced by a consistent strategy (milestone)"
+            replaced += 1
+        for i in range(replaced):  # refill with children of the consistent bots, best first
+            parent = good[i % len(good)]
+            gn, notes = mutate(parent, S)
+            new_variant(S, gn, parent["gen"] + 1, parent["id"], ["milestone: bred from consistent " + parent["id"]] + notes)
+        M.update(stage="proving", since=now, hit_count=len(good), pnl_at_start=S.get("total_pnl") or 0.0,
+                 trades_at_start=S.get("total_trades", 0))
+        best = good[:5]
+        events.append(
+            f"🎯 MILESTONE: {len(good)} bots are consistently profitable (each {CONS_TRADES}+ trades over "
+            f"{CONS_TOKENS}+ tokens, net profit, win rate {REQ_WR:.0%}+, profitable even without its best token).\n"
+            f"Their strategies were spread: {replaced} other bots replaced by their children.\n"
+            f"Proof test running for {PROOF_HOURS:.0f}h on fresh trades only.\nBest: " +
+            ", ".join(f"{v['id']} {sum(t['pnl_usd'] for t in v['closed']):+.2f} USD" for v in best))
+    elif M["stage"] == "proving" and now - M["since"] >= PROOF_HOURS * 3600:
+        # every trade since the test began counts, including bots retired during it (overall running total)
+        pnl = (S.get("total_pnl") or 0.0) - M["pnl_at_start"]
+        n = S.get("total_trades", 0) - M["trades_at_start"]
+        ok_bots = sum(1 for v in active(S) if consistent([t for t in v["closed"] if t["ts"] >= M["since"]],
+                                                         PROOF_TRADES, PROOF_TOKENS))
+        if pnl > 0 and ok_bots >= GOAL_BOTS:
+            M.update(stage="ready", ready_at=now, proof_pnl=pnl, proof_bots=ok_bots)
+            events.append(
+                f"✅ READY FOR A LIVE TEST: the {PROOF_HOURS:.0f}h proof test passed. {n} fresh trades, net "
+                f"{pnl:+.2f} USD, {ok_bots} bots consistent on fresh trades alone.\nNothing has gone live: the bot is "
+                f"still paper only. Live trading needs your decision and your own setup. Paper fills are optimistic, "
+                f"so start any live test very small.")
+        else:
+            M.update(stage="searching", last_fail=now,
+                     last_fail_why=f"{n} fresh trades, net {pnl:+.2f} USD, {ok_bots}/{GOAL_BOTS} bots consistent")
+            events.append(f"❌ Proof test failed ({M['last_fail_why']}). Back to evolving; the milestone can trigger again.")
+
+
 # ---------- market ----------
 async def get_pair(g, mint, pc, ttl):
     hit = pc.get(mint)
@@ -578,6 +653,7 @@ async def monitor(g, S, pc, events, notes_out):
                 del v["positions"][mint]
                 # overall running total across every bot (what the journal's P&L chart plots)
                 S["total_pnl"] = cum = (S.get("total_pnl") or 0.0) + pnl_usd
+                S["total_trades"] = S.get("total_trades", 0) + 1
                 result = "Win" if net > 0 else "Loss" if net < 0 else "Breakeven"
                 await asyncio.gather(auto.n_patch(g, pos.get("page_id"), {"archived": True}), auto.n_create(g, auto.DB_CLOSED, {
                     "Token": auto._title(pos["name"]), "Mint": auto._text(mint),
@@ -837,7 +913,7 @@ async def run(tb, g, loop_seconds: int):
     ensure_population(S, events)
     pc: dict = {}
     start = time.time()
-    last_scan = last_mon = last_clean = 0.0
+    last_scan = last_mon = last_clean = last_goal = 0.0
     # Telegram runs in its own task with long polling, so taps and messages are answered within about a second
     # instead of waiting for the next 10 s tick and for slow scans / Notion writes to finish.
     tg = asyncio.create_task(menu.poll(tb, g, S, pc))
@@ -871,6 +947,8 @@ async def run(tb, g, loop_seconds: int):
                     await monitor(g, S, pc, events, None); last_mon = now
                 if now - last_scan >= 20:
                     await scan(g, S, pc, events); last_scan = now
+                if now - last_goal >= 300:  # consistent-bot milestone and proof test
+                    milestone(S, events); last_goal = now
                 save(S)
                 await flush(tb, g, S, events)
                 if now - last_clean >= 60:  # delete chat messages past their age, keep a menu at the bottom

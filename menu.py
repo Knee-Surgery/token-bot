@@ -39,8 +39,13 @@ def menu_text(S) -> str:
     open_n = sum(len(v["positions"]) for v in vs)
     closed = sum(len(v["closed"]) for v in vs)
     pnl = S.get("total_pnl")
+    M = S.get("milestone") or {}
+    goal = {"proving": f"🎯 Proof test running since {time.strftime('%d %b %H:%M UTC', time.gmtime(M.get('since', 0)))}",
+            "ready": "✅ Proof test passed: ready for a live test (still paper)"}.get(
+        M.get("stage"), f"Consistent bots: {M.get('count', 0)}/{evo.GOAL_BOTS}")
     return (f"TOKEN BOT\n\nMode: PAPER ({'PAUSED' if S['halted'] else 'running'})\n"
-            + (f"Overall P&L: {'-' if pnl < 0 else '+'}${abs(pnl):,.2f} (target $0+)\n" if pnl is not None else "") +
+            + (f"Overall P&L: {'-' if pnl < 0 else '+'}${abs(pnl):,.2f} (target $0+)\n" if pnl is not None else "")
+            + goal + "\n" +
             f"Variants active: {act} · Validated: {val} · Retired: {ret}\n"
             f"Open trades: {open_n} · Closed trades: {closed}\n\nPick an option below.")
 
