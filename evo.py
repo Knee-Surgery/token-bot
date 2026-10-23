@@ -103,11 +103,14 @@ BOUNDS = {"tp": (45, 300), "sl": (1.5, 8), "hold": (1, 15), "trail": (3, 30), "s
           "min_liq": (HARD_MIN_LIQ, 200000),
           "min_score": (0, 90), "min_m5": (0, 15), "max_m5": (3, 1000), "min_txns": (0, 200),
           "min_vol_h1": (0, 500000),
-          "lock_pull": (0.5, 15), "stall": (2, 30)}  # discretionary exit genes (used once profit > DISCRETION_PCT)
-GENE_DEFAULT = {"lock_pull": 4.0, "stall": 8}
+          "lock_pull": (0.5, 15), "stall": (2, 30),  # discretionary exit genes (used once profit > DISCRETION_PCT)
+          "ps_frac": (0, 1), "ps_at": (5, 60)}  # partial sell: sell ps_frac of the position at +ps_at% gross
+GENE_DEFAULT = {"lock_pull": 4.0, "stall": 8, "ps_frac": 0, "ps_at": 20}
+PS_CHOICES = (0, 0.10, 0.25, 0.50, 0.75, 1.0)  # partial-sell sizes a bot can use (0 = never sells part)
 INTS = {"stall", "hold", "min_score", "min_txns", "min_holders", "max_age_min"}
 LOG_KEYS = {"tp", "target_usd", "max_age_min", "min_holders", "min_liq"}
-OPTIONAL = {"min_m5": (0.5, 10.0), "min_txns": (10, 100), "min_vol_h1": (5000, 100000), "min_score": (50, 80)}  # 0 = off
+OPTIONAL = {"min_m5": (0.5, 10.0), "min_txns": (10, 100), "min_vol_h1": (5000, 100000), "min_score": (50, 80),
+            "ps_frac": (0.1, 1.0)}  # 0 = off
 ANY_AGE = 10080  # max_age_min at this value = no age limit
 M5_OFF = 1000    # max_m5 at this value = no ceiling
 
@@ -158,6 +161,25 @@ def introduce_strategy(S, events):
         events.append(f"🆕 New strategy live: {len(swap)} bots switched to Momentum v2.")
 
 
+def introduce_partial_test(S, events):
+    """A/B test of partial selling, once: half of the unproven, idle bots get a partial-sell setting (sell 10, 25, 50,
+    75 or 100% of the position once it is up ps_at%, 5-40% gross); the other half keep selling all at once. Evolution
+    and the reviews then show which side makes more. Proven and validating bots are never touched."""
+    if S.get("partial_test"):
+        return
+    S["partial_test"] = time.time()
+    pool = [v for v in active(S) if v["status"] == "testing" and not v.get("proven") and not v["positions"]]
+    random.shuffle(pool)
+    picked = pool[:len(pool) // 2]
+    for v in picked:
+        v["genome"]["ps_frac"] = random.choice(PS_CHOICES[1:])
+        v["genome"]["ps_at"] = round(math.exp(random.uniform(math.log(5), math.log(40))), 1)
+        v["genome"] = clamp(v["genome"])
+        v.setdefault("notes", []).append("partial-sell test")
+    if picked:
+        events.append(f"🆕 New test live: {len(picked)} bots now sell part of a trade (10-100%) when it's in profit.")
+
+
 # ---------- state ----------
 def load() -> dict:
     if STATE.exists():
@@ -197,6 +219,7 @@ def clamp(gn: dict) -> dict:
     out["sl"] = min(out["sl"], round(1.5 * out["tp"], 2))
     if out["max_m5"] < out["min_m5"] + 1:
         out["max_m5"] = round(out["min_m5"] + 1, 2)
+    out["ps_frac"] = min(PS_CHOICES, key=lambda c: abs(c - out["ps_frac"]))  # snap to 10/25/50/75/100% (or off)
     return out
 
 
@@ -674,6 +697,39 @@ async def prefetch(g, pc, mints, ttl):
             pc[m] = (now, p)
 
 
+async def partial_sell(g, S, v, mint, pos, price, now):
+    """Sell ps_frac of an open position at the current price (once). The profit on that part is booked at once (bot
+    funds, overall total, Notion rows labelled 'Partial sell N%'); the rest stays open with the bot's normal exits."""
+    f = pos["ps_frac"]
+    label = f"Partial sell {f:.0%}"
+    net = (price / pos["entry_price"] - 1) * 100 - COST_PCT
+    part_cost, part_tokens = pos["cost_usd"] * f, pos["size_tokens"] * f
+    pnl = part_cost * net / 100
+    pos["ps_done"] = True
+    pos["realized_usd"] = pos.get("realized_usd", 0.0) + pnl
+    pos["cost_usd"] -= part_cost
+    pos["size_tokens"] -= part_tokens
+    v["paper_usd"] += pnl
+    S["total_pnl"] = cum = (S.get("total_pnl") or 0.0) + pnl
+    await asyncio.gather(
+        auto.n_patch(g, pos.get("page_id"), {"properties": {
+            "Size (Tokens)": auto._num(pos["size_tokens"]), "Cost Basis (USD)": auto._num(pos["cost_usd"])}}),
+        auto.n_create(g, auto.DB_CLOSED, {
+            "Token": auto._title(pos["name"]), "Mint": auto._text(mint),
+            "Entry Time": auto._date(pos["ts"]), "Exit Time": auto._date(now),
+            "Entry Price (USD)": auto._num(pos["entry_price"]), "Exit Price (USD)": auto._num(price),
+            "Size (Tokens)": auto._num(part_tokens), "Hold Time (hrs)": auto._num((now - pos["ts"]) / 3600),
+            "Realised PnL (USD)": auto._num(pnl), "PnL %": auto._num(net / 100),
+            "Result": auto._sel("Win" if pnl > 0 else "Loss"), "Exit Reason": auto._sel(label),
+            "Score": auto._num(pos.get("score")), "Holders": auto._num(pos.get("holders")),
+            "Top 10 %": auto._num(pos.get("top10")), "Mode": auto._sel("Paper"),
+            "Notes": auto._text(f"Variant {v['id']} gen{v['gen']} | {label} of the position, the rest stays open")}),
+        auto.n_create(g, auto.DB_EVENTS, {
+            "Event": auto._title(f"{label} {pos['name']} [{v['id']}]"), "Type": auto._sel(label),
+            "Token": auto._text(pos["name"]), "Time": auto._date(now), "Price (USD)": auto._num(price),
+            "Realised PnL (USD)": auto._num(pnl), "Cumulative PnL (USD)": auto._num(cum), "Mode": auto._sel("Paper")}))
+
+
 async def monitor(g, S, pc, events, notes_out):
     n_open = sum(len(v["positions"]) for v in S["variants"].values())
     patch_every = max(60, n_open * 0.8)  # keep Notion under its rate limit when many bots are open
@@ -690,7 +746,13 @@ async def monitor(g, S, pc, events, notes_out):
                 liq = float((p.get("liquidity") or {}).get("usd", 0))
                 now = time.time()
                 gross = (price / pos["entry_price"] - 1) * 100
-                why = decide_exit(pos, price, liq, now)
+                why = None
+                if pos.get("ps_frac") and not pos.get("ps_done") and gross >= pos["ps_at"]:
+                    if pos["ps_frac"] >= 1:
+                        why = "Partial sell 100%"  # the whole position goes at the partial-sell level
+                    else:
+                        await partial_sell(g, S, v, mint, pos, price, now)
+                why = why or decide_exit(pos, price, liq, now)
 
                 if not why:
                     if now - pos.get("last_patch", 0) >= patch_every:  # keep Notion calls light
@@ -704,10 +766,14 @@ async def monitor(g, S, pc, events, notes_out):
 
                 slip = RUG_EXIT_SLIP if why in ("liquidity collapse", "crash exit") else 0.0
                 net = gross - COST_PCT - slip
-                pnl_usd = pos["cost_usd"] * net / 100
+                pnl_usd = pos["cost_usd"] * net / 100  # what is left of the position (all of it without a partial)
                 v["paper_usd"] += pnl_usd
-                rec = {"mint": mint, "pnl_pct": net, "pnl_usd": pnl_usd, "win": net > 0,
-                       "why": why, "ts": now, "feat": pos.get("feat"), "name": pos["name"]}
+                # the trade as a whole (partial sell + the rest) is what the bot is tested on
+                whole_usd = pnl_usd + pos.get("realized_usd", 0.0)
+                whole_pct = whole_usd / (pos.get("orig_cost") or pos["cost_usd"]) * 100
+                rec = {"mint": mint, "pnl_pct": whole_pct, "pnl_usd": whole_usd, "win": whole_usd > 0,
+                       "why": why, "ts": now, "feat": pos.get("feat"), "name": pos["name"],
+                       "partial": pos["ps_frac"] if pos.get("ps_done") else None}
                 if pos.get("recovery"):  # funds only: kept out of the bot's testing record
                     v.setdefault("recovery", []).append(rec)
                     R = S.setdefault("recovery_stats", {"n": 0, "wins": 0, "pnl": 0.0, "paused": False})
@@ -718,7 +784,7 @@ async def monitor(g, S, pc, events, notes_out):
                                       f"${-R['pnl']:,.2f}. Small targets can't beat trading costs here.")
                 else:
                     v["closed"].append(rec)
-                S["total_wins"] = S.get("total_wins", 0) + (net > 0)
+                S["total_wins"] = S.get("total_wins", 0) + (whole_usd > 0)
                 del v["positions"][mint]
                 # overall running total across every bot (what the journal's P&L chart plots)
                 S["total_pnl"] = cum = (S.get("total_pnl") or 0.0) + pnl_usd
@@ -734,9 +800,12 @@ async def monitor(g, S, pc, events, notes_out):
                     "Score": auto._num(pos.get("score")), "Holders": auto._num(pos.get("holders")),
                     "Top 10 %": auto._num(pos.get("top10")), "Mode": auto._sel("Paper"),
                     "Notes": auto._text(f"Variant {v['id']} gen{v['gen']} | peak "
-                                        f"{(pos['peak_price'] / pos['entry_price'] - 1) * 100:+.0f}% | trail {pos['trail']}%")}),
+                                        f"{(pos['peak_price'] / pos['entry_price'] - 1) * 100:+.0f}% | trail {pos['trail']}%"
+                                        + (f" | rest after partial sell {pos['ps_frac']:.0%}; whole trade "
+                                           f"{whole_usd:+.2f} USD ({whole_pct:+.1f}%)" if pos.get("ps_done") else ""))}),
                     auto.n_create(g, auto.DB_EVENTS, {
-                    "Event": auto._title(f"Exit {pos['name']} [{v['id']}]"), "Type": auto._sel("Exit"),
+                    "Event": auto._title(f"{'Exit' if why != 'Partial sell 100%' else why} {pos['name']} [{v['id']}]"),
+                    "Type": auto._sel("Exit" if why != "Partial sell 100%" else why),
                     "Token": auto._text(pos["name"]), "Time": auto._date(now), "Price (USD)": auto._num(price),
                     "Realised PnL (USD)": auto._num(pnl_usd), "Cumulative PnL (USD)": auto._num(cum),
                     "Mode": auto._sel("Paper")}))
@@ -872,7 +941,8 @@ async def open_position(g, v, mint, p, a, age, size_usd, ex, recovery=False):
                             "hold": ex["hold"], "trail": ex["trail"], "page_id": page_id,
                             "lock_pull": ex["lock_pull"], "stall": ex["stall"],
                             "feat": features(p, a, age), "peak_price": fill, "last_price": price,
-                            "recovery": recovery}
+                            "recovery": recovery, "ps_frac": ex.get("ps_frac", 0), "ps_at": ex.get("ps_at", 0),
+                            "orig_cost": size_usd, "realized_usd": 0.0}
     v["cooldown"][mint] = ts
     v["last_entry"] = ts
 
@@ -1078,6 +1148,7 @@ async def run(tb, g, loop_seconds: int):
     events: list[str] = []
     ensure_population(S, events)
     introduce_strategy(S, events)
+    introduce_partial_test(S, events)
     pc: dict = {}
     start = time.time()
     last_scan = last_mon = last_clean = last_goal = last_save = 0.0

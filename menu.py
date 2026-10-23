@@ -124,7 +124,7 @@ async def screen(g, S, key, pc):
                       + [(t, True) for v in S["variants"].values() for t in v.get("recovery") or []],
                       key=lambda r: r[0]["ts"], reverse=True)[:10]
         lines = [f"{'🔁' if rec else '✅' if t['win'] else '❌'} {t.get('name') or t['mint'][:5]}  {t['pnl_pct']:+.1f}% · "
-                 f"{usd(t['pnl_usd'])}" for t, rec in rows]
+                 f"{usd(t['pnl_usd'])}" + (f" ✂️{t['partial']:.0%}" if t.get("partial") else "") for t, rec in rows]
         return "📜 LAST 10 TRADES\n\n" + ("\n".join(lines) or "No trades yet.")
     return menu_text(S)
 
