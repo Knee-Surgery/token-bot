@@ -15,42 +15,39 @@ import evo
 
 log = logging.getLogger("menu")
 JOURNAL_URL = os.getenv("JOURNAL_URL", "https://app.notion.com/p/40093233c10481e2ac93db11c0daf96e")
-BACK = Markup([[Btn("⬅️ Menu", callback_data="m:menu")]])
+BACK = Markup([[Btn("⬅️ Back", callback_data="m:menu")]])
 KEEP_HOURS = float(os.getenv("TG_KEEP_HOURS", "2"))
 
 
 def menu_markup(S):
     halted = S["halted"]
     return Markup([
-        [Btn("📊 Leaderboard", callback_data="m:lb"), Btn("💼 Open trades", callback_data="m:open")],
-        [Btn("📜 Recent trades", callback_data="m:recent"), Btn("🏆 Candidates", callback_data="m:cand")],
-        [Btn("🔎 Search / analyze", callback_data="m:analyze"), Btn("⚙️ Rules", callback_data="m:rules")],
+        [Btn("📊 Top bots", callback_data="m:lb"), Btn("💼 Open trades", callback_data="m:open")],
+        [Btn("📜 Recent", callback_data="m:recent"), Btn("🔎 Search", callback_data="m:analyze")],
         [Btn("▶️ Resume" if halted else "⏸ Pause", callback_data="m:resume" if halted else "m:pause"),
          Btn("📓 Journal", url=JOURNAL_URL)],
     ] + ([[Btn("🌳 Family tree", url=f"https://www.notion.so/{S['tree_page'].replace('-', '')}")]]
          if S.get("tree_page") else []))
 
 
+def usd(x) -> str:
+    return f"{'-' if x < 0 else '+'}${abs(x):,.2f}"
+
+
+def _big(x) -> str:
+    return f"${x / 1e6:,.1f}M" if x >= 1e6 else f"${x / 1e3:,.0f}k" if x >= 1e3 else f"${x:,.0f}"
+
+
 def menu_text(S) -> str:
-    vs = list(S["variants"].values())
-    act = len(evo.active(S))
-    val = sum(1 for v in vs if v["status"] == "validated")
-    ret = sum(1 for v in vs if v["status"] == "retired")
-    open_n = sum(len(v["positions"]) for v in vs)
-    closed = sum(len(v["closed"]) for v in vs)
     pnl = S.get("total_pnl")
     M = S.get("milestone") or {}
-    goal = {"proving": f"🎯 Proof test running since {time.strftime('%d %b %H:%M UTC', time.gmtime(M.get('since', 0)))}",
-            "ready": "✅ Proof test passed: ready for a live test (still paper)"}.get(
-        M.get("stage"), f"Consistent bots: {M.get('count', 0)}/{evo.GOAL_BOTS}")
-    return (f"TOKEN BOT\n\nMode: PAPER ({'PAUSED' if S['halted'] else 'running'})\n"
-            + (f"Overall P&L: {'-' if pnl < 0 else '+'}${abs(pnl):,.2f} (target $0+)\n" if pnl is not None else "")
-            + goal + "\n" +
-            f"Variants active: {act} · Validated: {val} · Retired: {ret}\n"
-            f"Open trades: {open_n} · Closed trades: {closed}\n\nPick an option below.")
-
-
-def _short(m): return f"{m[:4]}..{m[-4:]}"
+    goal = {"proving": f"🎯 Proof test running (ends "
+                       f"{time.strftime('%d %b %H:%M', time.gmtime(M.get('since', 0) + evo.PROOF_HOURS * 3600))} UTC)",
+            "ready": "✅ Ready for a live test"}.get(M.get("stage"), f"🎯 Reliable bots: {M.get('count', 0)}/{evo.GOAL_BOTS}")
+    open_n = sum(len(v["positions"]) for v in S["variants"].values())
+    return (f"🤖 Token Bot · Paper · {'⏸ Paused' if S['halted'] else '▶️ Running'}\n\n"
+            + (f"💰 P&L: {usd(pnl)}\n" if pnl is not None else "")
+            + f"💼 Open trades: {open_n}\n{goal}")
 
 
 def _age(minutes):
@@ -61,13 +58,10 @@ def _age(minutes):
 
 def fmt_search(q, rows) -> str:
     if not rows:
-        return f"No Solana coins found for '{q}'. Try another name, a symbol, or the mint address."
-    lines = []
-    for r in rows:
-        ch = "" if r["h24"] is None else f", 24h {r['h24']:+.0f}%"
-        lines.append(f"{r['symbol']} ({r['name'][:22]}) · age {_age(r['age_min'])}, liq ${r['liq']:,.0f}, "
-                     f"vol24 ${r['vol24']:,.0f}{ch}\n{r['mint']}")
-    return f"Results for '{q}' (Solana only):\n\n" + "\n\n".join(lines) + "\n\nTap a coin for the full analysis."
+        return f"🔎 Nothing found for '{q}'."
+    lines = [f"{r['symbol']} · liq {_big(r['liq'])}" + ("" if r["h24"] is None else f" · 24h {r['h24']:+.0f}%")
+             + f" · {_age(r['age_min'])} old" for r in rows[:5]]
+    return f"🔎 {q}\n\n" + "\n".join(lines) + "\n\nTap one to check it."
 
 
 def search_markup(rows):
@@ -76,77 +70,59 @@ def search_markup(rows):
 
 async def analysis_text(g, mint: str) -> str:
     a = await g["analyze"](mint)
-    text = g["fmt_analysis"](a)
-    p = a.get("pair")  # analyze() already fetched the best pair; no second DexScreener call
-    if p:
-        ra = {"holders": a.get("holders"), "top10": a.get("top10"),
-              "danger": any("[danger]" in f for f in (a.get("flags") or []))}
-        ra.update({k: v for k, v in (a.get("rc") or {}).items() if v is not None})
-        ok, why = evo.rug_ok(ra, p)
-        text += "\n\nBot rug check: " + ("PASS" if ok else f"FAIL ({why})")
-    return text
+    p = a.get("pair")
+    if not p:
+        return "🔍 No Solana trading pair found for that coin."
+    ra = {"holders": a.get("holders"), "top10": a.get("top10"),
+          "danger": any("[danger]" in f for f in (a.get("flags") or []))}
+    ra.update({k: v for k, v in (a.get("rc") or {}).items() if v is not None})
+    ok, why = evo.rug_ok(ra, p)
+    score = a["score"]
+    risk = "🟢 Lower risk" if score >= 75 else "🟡 Moderate" if score >= 55 else "🟠 High risk" if score >= 35 else "🔴 Avoid"
+    ch = (p.get("priceChange") or {}).get("h24")
+    lines = [f"🔍 {a.get('symbol') or mint[:6]}",
+             f"Price ${p.get('priceUsd')} · Liq {_big(a.get('liq') or 0)}",
+             f"24h vol {_big((p.get('volume') or {}).get('h24', 0) or 0)}" + ("" if ch is None else f" · 24h {ch:+.0f}%")]
+    if a.get("holders") is not None:
+        lines.append(f"Holders {a['holders']:,} · Top 10 {a.get('top10')}%")
+    lines.append(f"Risk: {risk} ({score}/100)")
+    lines.append("Bot check: ✅ pass" if ok else f"Bot check: ❌ {why}")
+    return "\n".join(lines)
 
 
 async def screen(g, S, key, pc):
     if key == "lb":
-        return evo.leaderboard(S)
+        live = [v for v in S["variants"].values() if v["status"] != "retired" and v["closed"]]
+        live.sort(key=lambda v: -sum(t["pnl_usd"] for t in v["closed"]))
+        rows = [f"{i}. {v['id']}  {usd(sum(t['pnl_usd'] for t in v['closed']))} · "
+                f"{sum(1 for t in v['closed'] if t['win'])}/{len(v['closed'])} wins" for i, v in enumerate(live[:10], 1)]
+        M = S.get("milestone") or {}
+        return ("📊 TOP BOTS\n\n" + ("\n".join(rows) or "No trades yet.")
+                + f"\n\nReliable: {M.get('count', 0)}/{evo.GOAL_BOTS}")
     if key == "open":
         # snapshot first: the trading loop may open/close positions while we await prices
-        rows = [(v, mint, pos) for v in list(S["variants"].values()) for mint, pos in list(v["positions"].items())]
-        shown = rows[:30]
-        await evo.prefetch(g, pc, [m for _, m, _ in shown], 8)  # one batched request, shared with the trading loop
+        by_token: dict = {}
+        for v in list(S["variants"].values()):
+            for mint, pos in list(v["positions"].items()):
+                by_token.setdefault(mint, []).append(pos)
+        await evo.prefetch(g, pc, list(by_token), 8)  # one batched request, shared with the trading loop
         lines = []
-        for v, mint, pos in shown:
+        for mint, ps in sorted(by_token.items(), key=lambda kv: -len(kv[1]))[:15]:
             try:
                 p = await evo.get_pair(g, mint, pc, 8)
-                cur = f"{(float(p['priceUsd']) / pos['entry_price'] - 1) * 100:+.1f}%"
+                now_px = float(p["priceUsd"])
+                chg = sum((now_px / pos["entry_price"] - 1) * 100 for pos in ps) / len(ps)
+                cur = f"{chg:+.1f}%"
             except Exception:
                 cur = "?"
-            lines.append(f"{v['id']} {pos['name']}  {cur}  (TP {pos['tp']}% / SL {pos['sl']}% / "
-                         f"trail {pos.get('trail', '-')}%{' ARMED' if pos.get('armed') else ''}, "
-                         f"{(time.time() - pos['ts']) / 60:.0f}m of {pos['hold']}m)")
-        total = len(rows)
-        return f"OPEN TRADES (paper): {total} open" + (" (showing 30)" if total > 30 else "") + "\n\n" + ("\n".join(lines) or "None open right now.")
+            lines.append(f"{ps[0]['name']}  {cur}" + (f" · {len(ps)} bots" if len(ps) > 1 else ""))
+        n = sum(len(ps) for ps in by_token.values())
+        return f"💼 OPEN TRADES · {n}\n\n" + ("\n".join(lines) or "None right now.")
     if key == "recent":
-        rows = [(t["ts"], v["id"], t) for v in S["variants"].values() for t in v["closed"]]
-        rows.sort(key=lambda r: r[0], reverse=True)
-        lines = [f"{vid} {_short(t['mint'])}  {t['pnl_pct']:+.1f}%  {t['pnl_usd']:+.2f} USD  ({t['why']})"
-                 for _, vid, t in rows[:10]]
-        return "RECENT TRADES\n\n" + ("\n".join(lines) or "No closed trades yet.")
-    if key == "cand":
-        vs = [v for v in S["variants"].values() if v["status"] in ("validated", "validating")]
-        if vs:
-            out = []
-            for v in vs:
-                n, w = len(v["closed"]), sum(1 for t in v["closed"] if t["win"])
-                out.append(f"{v['id']} gen{v['gen']} {v['status'].upper()}: {w}/{n} wins, "
-                           f"{sum(t['pnl_usd'] for t in v['closed']):+.2f} USD\n{v['genome']}")
-            return "CANDIDATES\n\n" + "\n\n".join(out)
-        best = sorted([v for v in S["variants"].values() if v["closed"] and v["status"] != "retired"],
-                      key=evo.fitness, reverse=True)[:3]
-        lines = [f"{v['id']}: {sum(1 for t in v['closed'] if t['win'])}/{len(v['closed'])} wins" for v in best]
-        return "CANDIDATES\n\nNo variant has passed its checks yet.\n\nClosest right now:\n" + ("\n".join(lines) or "none")
-    if key == "rules":
-        return ("RULES (cannot be changed by the bot)\n\n"
-                "• Paper trading only\n"
-                f"• Rug check on every entry: pair at least {evo.HARD_MIN_AGE:.0f} min old, "
-                f"{evo.HARD_MIN_HOLDERS}+ holders, top 10 under {evo.HARD_MAX_TOP10:.0f}%, "
-                f"no wallet over {evo.HARD_MAX_TOP1:.0f}%, creator under {evo.HARD_MAX_CREATOR:.0f}%, insiders under "
-                f"{evo.HARD_MAX_INSIDER:.0f}%, mint + freeze authority revoked, LP {evo.MIN_LP_LOCKED:.0f}%+ locked, "
-                f"liquidity ${evo.HARD_MIN_LIQ:,.0f}+, no RugCheck danger flags, no heavy sell pressure, no falling knives, "
-                "no wash volume\n"
-                "• Nothing else is fixed: max token age, momentum, volume are optional and evolved\n"
-                "• Finds coins from: newest pools (3 pages), new profiles, boosts, trending, top volume, "
-                "community takeovers and rotating keyword searches, Solana only\n"
-                f"• No minimum hold. Out by {evo.MAX_HOLD_FLAT:.0f} min unless in profit, then up to {evo.HARD_HOLD:.0f} min\n"
-                "• Take-profit 45%+ (aim 100%+), trailing stop from peak once past break-even\n"
-                f"• Above {evo.DISCRETION_PCT:.0f}% profit a bot decides its own exit at any time (pullback or momentum stall)\n"
-                f"• Rug exit if liquidity drops {evo.RUG_LIQ_DROP:.0%}+ or price crashes {evo.CRASH_TICK_PCT:.0f}%+ between checks\n"
-                f"• Requirements: win rate {evo.REQ_WR:.0%}+ and net profit\n"
-                f"• Checked after {evo.CHECK_1} trades and again at {evo.CHECK_2}: fail = retired, pass = breeds\n"
-                f"• Pass both = validation on {evo.VAL_TRADES} fresh trades, same requirements\n"
-                f"• Up to {evo.MAX_PER_TOKEN} bots in one token at a time\n"
-                "• Candidates are reported only; nothing goes live automatically")
+        rows = sorted((t for v in S["variants"].values() for t in v["closed"]), key=lambda t: t["ts"], reverse=True)[:10]
+        lines = [f"{'✅' if t['win'] else '❌'} {t.get('name') or t['mint'][:5]}  {t['pnl_pct']:+.1f}% · "
+                 f"{usd(t['pnl_usd'])}" for t in rows]
+        return "📜 LAST 10 TRADES\n\n" + ("\n".join(lines) or "No trades yet.")
     return menu_text(S)
 
 
@@ -250,8 +226,7 @@ async def handle_update(tb, g, S, pc, u):
             S["await"] = None
             if key == "analyze":
                 S["await"] = "analyze"
-                await _menu_screen(tb, g, S, q, "Send a coin name, symbol or mint address.\n\nI'll search Solana "
-                                                "coins and show the best matches.", BACK)
+                await _menu_screen(tb, g, S, q, "🔎 Send a coin name, symbol or address.", BACK)
             elif key.startswith("a:"):
                 await tb.send_chat_action(owner, "typing")
                 await say(tb, g, S, await analysis_text(g, key[2:]))
@@ -279,7 +254,7 @@ async def handle_update(tb, g, S, pc, u):
     except Exception as e:
         log.warning("menu update failed: %s", e)
         try:
-            await say(tb, g, S, f"Sorry, that failed: {e}"[:500])
+            await say(tb, g, S, "⚠️ That didn't work. Please try again.")
         except Exception:
             pass
     try:

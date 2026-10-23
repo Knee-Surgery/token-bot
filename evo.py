@@ -56,7 +56,10 @@ ACACHE_TTL_MIN = 30
 
 # hold window: no minimum hold; out by MAX_HOLD_FLAT minutes unless in profit, then never longer than HARD_HOLD
 HARD_HOLD = float(os.getenv("EVO_HARD_HOLD_MIN", "30"))      # only for trades that are in profit
-MAX_HOLD_FLAT = float(os.getenv("EVO_MAX_HOLD_MIN", "5"))    # everything not in profit is out by here at the latest
+MAX_HOLD_FLAT = float(os.getenv("EVO_MAX_HOLD_MIN", "15"))   # everything not in profit is out by here at the latest
+# active tokens only: 1h volume at least this multiple of liquidity. On tokens 4h+ old, entries below 0.5x won
+# 1 of 72 trades across 12 tokens (paper data to 2026-10-23)
+HARD_MIN_VOL_LIQ = float(os.getenv("EVO_MIN_VOL_LIQ", "0.5"))
 
 # rug-risk reasoning (hard rules; evolution can only make them stricter)
 # pair must be at least this old (minutes). 4 h: across 61 tokens, entries into pairs under 4 h lost $237 of the
@@ -76,17 +79,17 @@ MIN_LP_LOCKED = float(os.getenv("EVO_MIN_LP_LOCKED", "50"))         # % of LP lo
 LAUNCH_SLIP = float(os.getenv("EVO_LAUNCH_SLIP_PCT", "3"))            # paper penalty on entries into pairs < 15 min old
 
 SCHEMA = 4  # bump to restart all variants from fresh seeds when the rules change
-BOUNDS = {"tp": (45, 300), "sl": (1.5, 8), "hold": (1, 5), "trail": (3, 30), "size_frac": (0.1, 0.5),
+BOUNDS = {"tp": (45, 300), "sl": (1.5, 8), "hold": (1, 15), "trail": (3, 30), "size_frac": (0.1, 0.5),
           "target_usd": (0.2, 1.5), "max_age_min": (HARD_MIN_AGE + 15, 10080),
           "min_holders": (HARD_MIN_HOLDERS, 10000), "max_top10": (10, HARD_MAX_TOP10 - 1),
           "min_liq": (HARD_MIN_LIQ, 200000),
-          "min_score": (0, 90), "min_m5": (0, 3), "max_m5": (3, 1000), "min_txns": (0, 200),
+          "min_score": (0, 90), "min_m5": (0, 15), "max_m5": (3, 1000), "min_txns": (0, 200),
           "min_vol_h1": (0, 500000),
           "lock_pull": (0.5, 15), "stall": (2, 30)}  # discretionary exit genes (used once profit > DISCRETION_PCT)
 GENE_DEFAULT = {"lock_pull": 4.0, "stall": 8}
 INTS = {"stall", "hold", "min_score", "min_txns", "min_holders", "max_age_min"}
 LOG_KEYS = {"tp", "target_usd", "max_age_min", "min_holders", "min_liq"}
-OPTIONAL = {"min_m5": (0.5, 3.0), "min_txns": (10, 100), "min_vol_h1": (5000, 100000), "min_score": (50, 80)}  # 0 = off
+OPTIONAL = {"min_m5": (0.5, 10.0), "min_txns": (10, 100), "min_vol_h1": (5000, 100000), "min_score": (50, 80)}  # 0 = off
 ANY_AGE = 10080  # max_age_min at this value = no age limit
 M5_OFF = 1000    # max_m5 at this value = no ceiling
 
@@ -101,6 +104,40 @@ SEEDS = [
     dict(_BASE, max_age_min=ANY_AGE, trail=12),                                        # any age, rug checks only
     dict(_BASE, max_age_min=45, min_holders=200, max_top10=50, min_liq=10000, tp=150, trail=15),  # careful early
 ]
+
+# Momentum v2 (2026-10-23): breakouts on established, actively traded tokens, given time to run. Built from the
+# paper data on tokens 4h+ old: strong 5m momentum (+10%) was the only entry bucket in profit, 1-3% lost; liquidity
+# under $30k averaged -5.4%; flat exits at the 5-minute cap averaged -2.1% (costs, no time to move); profit-lock
+# exits on pullbacks made all the money.
+MOMENTUM_V2 = dict(_BASE, max_age_min=ANY_AGE, min_m5=7, max_m5=60, min_liq=30000, min_holders=500, max_top10=40,
+                   hold=12, sl=4, trail=10, tp=80, lock_pull=5.0, stall=10, size_frac=0.25)
+STRATEGY_VERSION = 2
+STRATEGY_SWAP = int(os.getenv("EVO_STRATEGY_SWAP", "100"))  # bots switched to a new strategy family when it ships
+
+
+def momentum_genome() -> dict:
+    """Momentum v2 with jitter, so the new family explores around the design instead of 100 identical bots."""
+    gn = {k: (float(x) * random.uniform(0.8, 1.25) if k in ("min_m5", "hold", "sl", "trail", "tp", "lock_pull", "stall")
+              else x) for k, x in MOMENTUM_V2.items()}
+    return clamp(gn)
+
+
+def introduce_strategy(S, events):
+    """Ship a new strategy family once: the STRATEGY_SWAP weakest unproven bots (no trades or a loss) are replaced
+    by Momentum v2 bots. Proven and validating bots are never touched."""
+    if S.get("strategy_v", 1) >= STRATEGY_VERSION:
+        return
+    S["strategy_v"] = STRATEGY_VERSION
+    pool = [v for v in active(S) if v["status"] == "testing" and not v.get("proven") and not v["positions"]
+            and sum(t["pnl_usd"] for t in v["closed"]) <= 0]
+    pool.sort(key=lambda v: (sum(t["pnl_usd"] for t in v["closed"]), -len(v["closed"])))  # biggest losers first
+    swap = pool[:STRATEGY_SWAP]
+    for v in swap:
+        v["status"], v["reason"] = "retired", "replaced by the Momentum v2 strategy"
+    for _ in swap:
+        new_variant(S, momentum_genome(), 0, None, ["Momentum v2 strategy"])
+    if swap:
+        events.append(f"🆕 New strategy live: {len(swap)} bots switched to Momentum v2.")
 
 
 # ---------- state ----------
@@ -375,8 +412,8 @@ def apply_judgement(S, v, events):
                       f"net {pnl:+.2f} USD). Now validating on {VAL_TRADES} fresh trades.")
     elif kind == "validated":
         v["status"] = "validated"
-        events.append(f"VALIDATED CANDIDATE {v['id']} gen{v['gen']}: {wins}/{n} wins ({wins/n:.0%}), net {pnl:+.2f} USD, "
-                      f"paper only.\nGenome: {v['genome']}\nPaper fills are optimistic; do not assume live results match.")
+        events.append(f"⭐ Bot {v['id']} passed its final test: {wins}/{n} wins, "
+                      f"{'-' if pnl < 0 else '+'}${abs(pnl):.2f} (paper).")
 
 
 # ---------- milestone: enough consistently profitable bots -> spread their strategies -> prove it again ----------
@@ -428,13 +465,8 @@ def milestone(S, events):
             new_variant(S, gn, parent["gen"] + 1, parent["id"], ["milestone: bred from consistent " + parent["id"]] + notes)
         M.update(stage="proving", since=now, hit_count=len(good), pnl_at_start=S.get("total_pnl") or 0.0,
                  trades_at_start=S.get("total_trades", 0))
-        best = good[:5]
-        events.append(
-            f"🎯 MILESTONE: {len(good)} bots are consistently profitable (each {CONS_TRADES}+ trades over "
-            f"{CONS_TOKENS}+ tokens, net profit, win rate {REQ_WR:.0%}+, profitable even without its best token).\n"
-            f"Their strategies were spread: {replaced} other bots replaced by their children.\n"
-            f"Proof test running for {PROOF_HOURS:.0f}h on fresh trades only.\nBest: " +
-            ", ".join(f"{v['id']} {sum(t['pnl_usd'] for t in v['closed']):+.2f} USD" for v in best))
+        events.append(f"🎯 Goal reached: {len(good)} bots are reliably profitable.\n"
+                      f"Their strategies were copied to the rest. {PROOF_HOURS:.0f}h proof test started.")
     elif M["stage"] == "proving" and now - M["since"] >= PROOF_HOURS * 3600:
         # every trade since the test began counts, including bots retired during it (overall running total)
         pnl = (S.get("total_pnl") or 0.0) - M["pnl_at_start"]
@@ -443,15 +475,13 @@ def milestone(S, events):
                                                          PROOF_TRADES, PROOF_TOKENS))
         if pnl > 0 and ok_bots >= GOAL_BOTS:
             M.update(stage="ready", ready_at=now, proof_pnl=pnl, proof_bots=ok_bots)
-            events.append(
-                f"✅ READY FOR A LIVE TEST: the {PROOF_HOURS:.0f}h proof test passed. {n} fresh trades, net "
-                f"{pnl:+.2f} USD, {ok_bots} bots consistent on fresh trades alone.\nNothing has gone live: the bot is "
-                f"still paper only. Live trading needs your decision and your own setup. Paper fills are optimistic, "
-                f"so start any live test very small.")
+            events.append(f"✅ Proof test passed: +${pnl:,.2f} over {n} trades.\n"
+                          f"Ready for a small live test, your call. Still paper only.")
         else:
             M.update(stage="searching", last_fail=now,
                      last_fail_why=f"{n} fresh trades, net {pnl:+.2f} USD, {ok_bots}/{GOAL_BOTS} bots consistent")
-            events.append(f"❌ Proof test failed ({M['last_fail_why']}). Back to evolving; the milestone can trigger again.")
+            events.append(f"❌ Proof test failed: P&L {'-' if pnl < 0 else '+'}${abs(pnl):,.2f}, "
+                          f"{ok_bots}/{GOAL_BOTS} reliable bots. Back to improving.")
 
 
 # ---------- market ----------
@@ -649,7 +679,8 @@ async def monitor(g, S, pc, events, notes_out):
                 pnl_usd = pos["cost_usd"] * net / 100
                 v["paper_usd"] += pnl_usd
                 v["closed"].append({"mint": mint, "pnl_pct": net, "pnl_usd": pnl_usd, "win": net > 0,
-                                    "why": why, "ts": now, "feat": pos.get("feat")})
+                                    "why": why, "ts": now, "feat": pos.get("feat"), "name": pos["name"]})
+                S["total_wins"] = S.get("total_wins", 0) + (net > 0)
                 del v["positions"][mint]
                 # overall running total across every bot (what the journal's P&L chart plots)
                 S["total_pnl"] = cum = (S.get("total_pnl") or 0.0) + pnl_usd
@@ -706,6 +737,9 @@ async def scan(g, S, pc, events):
         age = pair_age_min(p, now)
         if age is None or age < HARD_MIN_AGE:
             continue  # too new for the rug rules; don't spend one of the few analyses per scan on it
+        p_liq = (p.get("liquidity") or {}).get("usd", 0) or 0
+        if p_liq and ((p.get("volume") or {}).get("h1", 0) or 0) / p_liq < HARD_MIN_VOL_LIQ:
+            continue  # quiet token: on established tokens these almost never moved enough to pay the costs
         wanting = [v for v in free if now - v["cooldown"].get(mint, 0) > COOLDOWN_MIN * 60
                    and entry_ok(p, v["genome"], age)]
         if not wanting:
@@ -818,19 +852,45 @@ def leaderboard(S) -> str:
             f"\nValidated candidates: {', '.join(validated) or 'none yet'}" + why)
 
 
+ALERTS = ("🎯", "✅", "❌", "🆕", "⭐")  # sent straight away; everything else only feeds the hourly summary
+DIGEST_MIN = float(os.getenv("TG_DIGEST_MIN", "60"))
+
+
 async def flush(tb, g, S, events):
-    """Send events in as few Telegram messages as possible (100 bots would otherwise flood the chat), then move
-    the menu back under them."""
+    """Keep Telegram readable at a glance: important alerts go out at once, routine bot activity (spawned, retired,
+    proven, rug exits...) is only counted, and one short summary is sent every DIGEST_MIN minutes. Then the menu
+    is moved back under the new messages."""
     import menu
-    chunks, cur = [], ""
+    now = time.time()
+    D = S.get("digest")
+    if not D:
+        D = S["digest"] = {"since": now, "pnl": S.get("total_pnl") or 0.0, "trades": S.get("total_trades", 0),
+                           "wins": S.get("total_wins", 0), "new": 0, "retired": 0}
+    msgs = []
     for e in events:
-        e = e[:1500]
-        if cur and len(cur) + len(e) + 2 > 3500:
-            chunks.append(cur)
-            cur = ""
-        cur += ("\n\n" if cur else "") + e
-    if cur:
-        chunks.append(cur)
+        if e.startswith(ALERTS):
+            msgs.append(e[:1500])
+        elif e.startswith("SPAWNED"):
+            m = re.match(r"SPAWNED (\d+) new bots", e)
+            D["new"] += int(m.group(1)) if m else 1
+        elif e.startswith("RETIRED"):
+            D["retired"] += 1
+    events.clear()
+    if now - D["since"] >= DIGEST_MIN * 60:
+        pnl = (S.get("total_pnl") or 0.0) - D["pnl"]
+        n = S.get("total_trades", 0) - D["trades"]
+        w = S.get("total_wins", 0) - D["wins"]
+        if n or D["new"] or D["retired"]:
+            lines = [f"📊 Last {DIGEST_MIN / 60:g}h" if DIGEST_MIN >= 60 else f"📊 Last {DIGEST_MIN:g} min"]
+            if n:
+                lines.append(f"Trades: {n} ({w} won)")
+                lines.append(f"P&L: {menu.usd(pnl)}")
+            lines.append(f"Total: {menu.usd(S.get('total_pnl') or 0.0)}")
+            if D["new"] or D["retired"]:
+                lines.append(f"Bots: {D['new']} new, {D['retired']} retired")
+            msgs.append("\n".join(lines))
+        S["digest"] = None
+    chunks = msgs
     for c in chunks[:6]:
         try:
             await menu.say(tb, g, S, c)
@@ -911,6 +971,7 @@ async def run(tb, g, loop_seconds: int):
     S = load()
     events: list[str] = []
     ensure_population(S, events)
+    introduce_strategy(S, events)
     pc: dict = {}
     start = time.time()
     last_scan = last_mon = last_clean = last_goal = 0.0
