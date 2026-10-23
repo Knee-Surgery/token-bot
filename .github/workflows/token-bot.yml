@@ -36,7 +36,7 @@ jobs:
           OWNER_CHAT_ID: "8643619357"
           DRY_RUN: "true"
           EVO_MODE: "true"
-          EVO_POP: "22"
+          EVO_POP: "100"
           EVO_START_USD: "10"
           LOOP_SECONDS: "290"
           SCALP_TARGET_USD: "0.20"
