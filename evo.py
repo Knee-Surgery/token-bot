@@ -737,8 +737,10 @@ def leaderboard(S) -> str:
             f"\nValidated candidates: {', '.join(validated) or 'none yet'}" + why)
 
 
-async def flush(tb, g, events):
-    """Send events in as few Telegram messages as possible (100 bots would otherwise flood the chat)."""
+async def flush(tb, g, S, events):
+    """Send events in as few Telegram messages as possible (100 bots would otherwise flood the chat), then move
+    the menu back under them."""
+    import menu
     chunks, cur = [], ""
     for e in events:
         e = e[:1500]
@@ -750,10 +752,15 @@ async def flush(tb, g, events):
         chunks.append(cur)
     for c in chunks[:6]:
         try:
-            await tb.send_message(g["OWNER_ID"], c)
+            await menu.say(tb, g, S, c)
         except Exception as ex:
             log.warning("notify failed: %s", ex)
     events.clear()
+    if chunks:
+        try:
+            await menu.keep_menu_last(tb, g, S)
+        except Exception as ex:
+            log.warning("menu repost failed: %s", ex)
 
 
 async def sweep_orphans(g, S) -> int:
@@ -790,10 +797,11 @@ async def run(tb, g, loop_seconds: int):
     ensure_population(S, events)
     pc: dict = {}
     start = time.time()
-    last_scan = last_mon = 0.0
+    last_scan = last_mon = last_clean = 0.0
     # Telegram runs in its own task with long polling, so taps and messages are answered within about a second
     # instead of waiting for the next 10 s tick and for slow scans / Notion writes to finish.
     tg = asyncio.create_task(menu.poll(tb, g, S, pc))
+    family = None
     try:
         try:  # before any new entries, so rows being created can't be mistaken for orphans
             n = await sweep_orphans(g, S)
@@ -801,6 +809,14 @@ async def run(tb, g, loop_seconds: int):
                 events.append(f"Cleaned {n} stale row(s) from Notion Open Trades")
         except Exception as e:
             log.warning("sweep error: %s", e)
+
+        async def _family():
+            import tree
+            try:
+                await tree.refresh(g, S)
+            except Exception as e:
+                log.warning("family tree update failed: %s", e)
+        family = asyncio.create_task(_family())  # once per run, in the background (it takes a minute or two)
         while True:
             now = time.time()
             try:
@@ -809,13 +825,19 @@ async def run(tb, g, loop_seconds: int):
                 if now - last_scan >= 20:
                     await scan(g, S, pc, events); last_scan = now
                 save(S)
-                await flush(tb, g, events)
+                await flush(tb, g, S, events)
+                if now - last_clean >= 60:  # delete chat messages past their age, keep a menu at the bottom
+                    last_clean = now
+                    await menu.cleanup(tb, g, S)
+                    await menu.keep_menu_last(tb, g, S)
             except Exception as e:
                 log.exception("cycle error: %s", e)
             if time.time() - start + 10 >= loop_seconds:
                 break
             await asyncio.sleep(10)
     finally:
-        tg.cancel()
-        await asyncio.gather(tg, return_exceptions=True)
+        for t in (tg, family):
+            if t:
+                t.cancel()
+        await asyncio.gather(*(t for t in (tg, family) if t), return_exceptions=True)
         save(S)

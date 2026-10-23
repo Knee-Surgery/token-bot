@@ -1,6 +1,10 @@
 """
 Button menu for the Telegram bot (inline keyboard, edits the same message in place).
 Tap /start or send any text to open it. Used by evo.py; no slash commands needed.
+
+The menu is always the last message in the chat: whenever the bot posts something else (alerts, search results,
+analyses) or you send a message, the old menu is deleted and a fresh one is posted underneath. Every message in
+the chat (yours and the bot's) is deleted once it is TG_KEEP_HOURS old (default 2).
 """
 import asyncio, os, time, logging
 
@@ -12,6 +16,7 @@ import evo
 log = logging.getLogger("menu")
 JOURNAL_URL = os.getenv("JOURNAL_URL", "https://app.notion.com/p/40093233c10481e2ac93db11c0daf96e")
 BACK = Markup([[Btn("⬅️ Menu", callback_data="m:menu")]])
+KEEP_HOURS = float(os.getenv("TG_KEEP_HOURS", "2"))
 
 
 def menu_markup(S):
@@ -22,7 +27,8 @@ def menu_markup(S):
         [Btn("🔎 Search / analyze", callback_data="m:analyze"), Btn("⚙️ Rules", callback_data="m:rules")],
         [Btn("▶️ Resume" if halted else "⏸ Pause", callback_data="m:resume" if halted else "m:pause"),
          Btn("📓 Journal", url=JOURNAL_URL)],
-    ])
+    ] + ([[Btn("🌳 Family tree", url=f"https://www.notion.so/{S['tree_page'].replace('-', '')}")]]
+         if S.get("tree_page") else []))
 
 
 def menu_text(S) -> str:
@@ -58,9 +64,7 @@ def fmt_search(q, rows) -> str:
 
 
 def search_markup(rows):
-    kb = [[Btn(f"🔍 {r['symbol'][:14]}", callback_data=f"m:a:{r['mint']}")] for r in rows[:5]]
-    kb.append([Btn("⬅️ Menu", callback_data="m:menu")])
-    return Markup(kb)
+    return Markup([[Btn(f"🔍 {r['symbol'][:14]}", callback_data=f"m:a:{r['mint']}")] for r in rows[:5]])
 
 
 async def analysis_text(g, mint: str) -> str:
@@ -139,13 +143,71 @@ async def screen(g, S, key, pc):
     return menu_text(S)
 
 
-async def _edit(tb, g, q, text, markup):
-    try:
-        await q.edit_message_text(text[:3900], reply_markup=markup)
-    except Exception as e:
-        if "not modified" in str(e).lower():
+# ---------- chat housekeeping: menu always last, messages older than KEEP_HOURS deleted ----------
+_lock = asyncio.Lock()  # the poll task and the trading loop both post; one menu at a time
+
+
+def _track(S, msg_id):
+    S.setdefault("tg_msgs", []).append([msg_id, time.time()])
+    S["last_id"] = max(S.get("last_id") or 0, msg_id)
+
+
+async def say(tb, g, S, text, markup=None):
+    """Post a normal message (alerts, results). It lands above the menu; keep_menu_last() moves the menu below."""
+    m = await tb.send_message(g["OWNER_ID"], text[:3900], reply_markup=markup)
+    _track(S, m.message_id)
+    return m
+
+
+async def show_menu(tb, g, S, text=None, markup=None):
+    """Delete the old menu and post a fresh one at the bottom (silently: no notification for a menu move)."""
+    async with _lock:
+        old = S.get("menu_id")
+        m = await tb.send_message(g["OWNER_ID"], (text or menu_text(S))[:3900],
+                                  reply_markup=markup or menu_markup(S), disable_notification=True)
+        S["menu_id"] = m.message_id
+        _track(S, m.message_id)
+        if old:
+            S["tg_msgs"] = [x for x in S["tg_msgs"] if x[0] != old]
+            try:
+                await tb.delete_message(g["OWNER_ID"], old)
+            except Exception:
+                pass  # already gone or too old for Telegram to delete
+
+
+async def keep_menu_last(tb, g, S):
+    if not S.get("menu_id") or (S.get("last_id") or 0) > S["menu_id"]:
+        await show_menu(tb, g, S)
+
+
+async def cleanup(tb, g, S):
+    """Delete every tracked message (bot's and the owner's) older than KEEP_HOURS, except the live menu,
+    which is re-posted instead so the chat is never left without one. Telegram only lets bots delete
+    messages under 48 hours old, so this has to keep running."""
+    cut = time.time() - KEEP_HOURS * 3600
+    menu_id = S.get("menu_id")
+    old = [mid for mid, ts in S.get("tg_msgs", []) if ts < cut and mid != menu_id]
+    for i in range(0, len(old), 100):  # deleteMessages takes up to 100 ids; missing ones are skipped
+        try:
+            await tb.delete_messages(g["OWNER_ID"], old[i:i + 100])
+        except Exception as e:
+            log.warning("cleanup delete failed: %s", e)
+    gone = set(old)
+    S["tg_msgs"] = [x for x in S.get("tg_msgs", []) if x[0] not in gone]
+    if menu_id and any(mid == menu_id and ts < cut for mid, ts in S["tg_msgs"]):
+        await show_menu(tb, g, S)  # menu itself is old: replace it with a fresh one at the bottom
+
+
+async def _menu_screen(tb, g, S, q, text, markup):
+    """Show a screen inside the menu message. A tap on any other (older) message gets a fresh menu instead."""
+    if q.message and q.message.message_id == S.get("menu_id"):
+        try:
+            await q.edit_message_text(text[:3900], reply_markup=markup)
             return
-        await tb.send_message(g["OWNER_ID"], text[:3900], reply_markup=markup)
+        except Exception as e:
+            if "not modified" in str(e).lower():
+                return
+    await show_menu(tb, g, S, text, markup)
 
 
 async def poll(tb, g, S, pc):
@@ -181,37 +243,39 @@ async def handle_update(tb, g, S, pc, u):
             S["await"] = None
             if key == "analyze":
                 S["await"] = "analyze"
-                await _edit(tb, g, q, "Send a coin name, symbol or mint address.\n\nI'll search Solana "
-                                      "coins and show the best matches.", BACK)
+                await _menu_screen(tb, g, S, q, "Send a coin name, symbol or mint address.\n\nI'll search Solana "
+                                                "coins and show the best matches.", BACK)
             elif key.startswith("a:"):
-                await _edit(tb, g, q, "Analysing...", None)
-                await tb.send_message(owner, (await analysis_text(g, key[2:]))[:3900], reply_markup=BACK)
+                await tb.send_chat_action(owner, "typing")
+                await say(tb, g, S, await analysis_text(g, key[2:]))
             elif key in ("pause", "resume"):
                 S["halted"] = key == "pause"
-                await _edit(tb, g, q, menu_text(S), menu_markup(S))
+                await _menu_screen(tb, g, S, q, menu_text(S), menu_markup(S))
             elif key == "menu":
-                await _edit(tb, g, q, menu_text(S), menu_markup(S))
+                await _menu_screen(tb, g, S, q, menu_text(S), menu_markup(S))
             else:
-                await _edit(tb, g, q, await screen(g, S, key, pc), BACK)
-        elif u.message and u.message.from_user and u.message.from_user.id == owner and u.message.text:
-            text = u.message.text.strip()
+                await _menu_screen(tb, g, S, q, await screen(g, S, key, pc), BACK)
+        elif u.message and u.message.from_user and u.message.from_user.id == owner:
+            _track(S, u.message.message_id)  # the owner's messages are cleaned up too
+            text = (u.message.text or "").strip()
             if S.get("await") == "analyze" and text and not text.startswith("/"):
                 S["await"] = None
+                await tb.send_chat_action(owner, "typing")
                 if 32 <= len(text) <= 44 and text.isalnum():      # a mint address: analyse it directly
-                    await tb.send_message(owner, "Analysing...")
-                    await tb.send_message(owner, (await analysis_text(g, text))[:3900], reply_markup=BACK)
+                    await say(tb, g, S, await analysis_text(g, text))
                 else:                                              # a name or symbol: search
-                    await tb.send_message(owner, "Searching...")
                     rows = await auto.search_coins(g, text)
-                    await tb.send_message(owner, fmt_search(text, rows)[:3900], reply_markup=search_markup(rows))
+                    await say(tb, g, S, fmt_search(text, rows), search_markup(rows) if rows else None)
             elif (text.split() or [""])[0].split("@")[0].lower() == "/halt":
                 S["halted"] = True
-                await tb.send_message(owner, menu_text(S), reply_markup=menu_markup(S))
-            else:
-                await tb.send_message(owner, menu_text(S), reply_markup=menu_markup(S))
+            await show_menu(tb, g, S)  # anything the owner sends brings a fresh menu to the bottom
     except Exception as e:
         log.warning("menu update failed: %s", e)
-        try:  # never leave the user staring at "Analysing..." / "Searching..."
-            await tb.send_message(owner, f"Sorry, that failed: {e}"[:500], reply_markup=BACK)
+        try:
+            await say(tb, g, S, f"Sorry, that failed: {e}"[:500])
         except Exception:
             pass
+    try:
+        await keep_menu_last(tb, g, S)
+    except Exception as e:
+        log.warning("menu repost failed: %s", e)
