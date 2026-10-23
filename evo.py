@@ -164,7 +164,7 @@ def save(S: dict):
         if v["status"] == "retired" and len(v["closed"]) > 60:
             v["closed"] = v["closed"][-60:]
         v["cooldown"] = dict(sorted(v["cooldown"].items(), key=lambda kv: kv[1])[-50:])
-    STATE.write_text(json.dumps(S, indent=1))
+    STATE.write_text(json.dumps(S, separators=(",", ":")))  # compact: a third smaller to write and to commit
 
 
 # ---------- genome ----------
@@ -725,7 +725,7 @@ async def scan(g, S, pc, events):
             ensure_population(S, events)
     random.shuffle(free)
 
-    cands = (await auto.discover(g))[:CANDIDATE_LIMIT]
+    cands = (await auto.discover(g, HARD_MIN_AGE))[:CANDIDATE_LIMIT]
     await prefetch(g, pc, cands, 15)  # one request per 30 coins instead of one each
     analyses = 0
     for mint in cands:
@@ -974,7 +974,7 @@ async def run(tb, g, loop_seconds: int):
     introduce_strategy(S, events)
     pc: dict = {}
     start = time.time()
-    last_scan = last_mon = last_clean = last_goal = 0.0
+    last_scan = last_mon = last_clean = last_goal = last_save = 0.0
     # Telegram runs in its own task with long polling, so taps and messages are answered within about a second
     # instead of waiting for the next 10 s tick and for slow scans / Notion writes to finish.
     tg = asyncio.create_task(menu.poll(tb, g, S, pc))
@@ -1010,7 +1010,8 @@ async def run(tb, g, loop_seconds: int):
                     await scan(g, S, pc, events); last_scan = now
                 if now - last_goal >= 300:  # consistent-bot milestone and proof test
                     milestone(S, events); last_goal = now
-                save(S)
+                if now - last_save >= 60:  # the file is only committed at the end of the run; once a minute is plenty
+                    save(S); last_save = now
                 await flush(tb, g, S, events)
                 if now - last_clean >= 60:  # delete chat messages past their age, keep a menu at the bottom
                     last_clean = now

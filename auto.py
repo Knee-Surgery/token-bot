@@ -221,23 +221,39 @@ def _pick_best(pairs: list) -> dict:
     return best
 
 
-async def discover(g) -> list[str]:
-    """Candidate mints, newest first. Several sources every scan, plus rotating ones, so coverage keeps widening."""
+async def discover(g, min_age_min: float = 0) -> list[str]:
+    """Candidate mints. Several sources every scan, plus rotating ones, so coverage keeps widening.
+    With min_age_min of an hour or more only coins that can be that old are fetched: new-pool and new-profile feeds
+    are minutes-old launches (0 of 61 were buyable under the 4h rule) and cost GeckoTerminal rate limit that the
+    trending feed needs; trending, top-volume and boosted feeds are where established coins show up."""
     n = _tick["n"]
     _tick["n"] += 1
-    p2 = 2 + n % 2  # newest pools: page 1 every scan, pages 2 and 3 alternating
-    rot = [  # one rotating source per scan keeps every API inside its rate limit
-        (_gt_mints, "gt_trending", f"{GT_BASE}/trending_pools", GT_HEADERS),
-        (_gt_mints, "gt_volume", f"{GT_BASE}/pools?sort=h24_volume_usd_desc", GT_HEADERS),
-        (_ds_mints, "ds_boosts_top", f"{DS}/token-boosts/top/v1", None),
-        (_ds_mints, "ds_takeovers", f"{DS}/community-takeovers/latest/v1", None),
-    ][n % 4]
-    term = SEARCH_TERMS[n % len(SEARCH_TERMS)]  # keyword search across everything DexScreener knows, newest first
-    gt = [(_gt_mints, "gt_new_1", f"{GT_BASE}/new_pools?page=1", GT_HEADERS),
-          (_gt_mints, f"gt_new_{p2}", f"{GT_BASE}/new_pools?page={p2}", GT_HEADERS)]
-    ds = [(_ds_mints, "ds_profiles", f"{DS}/token-profiles/latest/v1", None),
-          (_ds_mints, "ds_boosts", f"{DS}/token-boosts/latest/v1", None)]
+    established = min_age_min >= 60
+    if established:
+        rot = [  # one rotating source per scan keeps every API inside its rate limit
+            (_gt_mints, "gt_trending_2", f"{GT_BASE}/trending_pools?page=2", GT_HEADERS),
+            (_gt_mints, "gt_volume", f"{GT_BASE}/pools?sort=h24_volume_usd_desc", GT_HEADERS),
+            (_gt_mints, "gt_volume_2", f"{GT_BASE}/pools?sort=h24_volume_usd_desc&page=2", GT_HEADERS),
+            (_ds_mints, "ds_takeovers", f"{DS}/community-takeovers/latest/v1", None),
+        ][n % 4]
+        gt = [(_gt_mints, "gt_trending", f"{GT_BASE}/trending_pools", GT_HEADERS)]
+        ds = [(_ds_mints, "ds_boosts", f"{DS}/token-boosts/latest/v1", None),
+              (_ds_mints, "ds_boosts_top", f"{DS}/token-boosts/top/v1", None)]
+    else:
+        p2 = 2 + n % 2  # newest pools: page 1 every scan, pages 2 and 3 alternating
+        rot = [
+            (_gt_mints, "gt_trending", f"{GT_BASE}/trending_pools", GT_HEADERS),
+            (_gt_mints, "gt_volume", f"{GT_BASE}/pools?sort=h24_volume_usd_desc", GT_HEADERS),
+            (_ds_mints, "ds_boosts_top", f"{DS}/token-boosts/top/v1", None),
+            (_ds_mints, "ds_takeovers", f"{DS}/community-takeovers/latest/v1", None),
+        ][n % 4]
+        gt = [(_gt_mints, "gt_new_1", f"{GT_BASE}/new_pools?page=1", GT_HEADERS),
+              (_gt_mints, f"gt_new_{p2}", f"{GT_BASE}/new_pools?page={p2}", GT_HEADERS)]
+        ds = [(_ds_mints, "ds_profiles", f"{DS}/token-profiles/latest/v1", None),
+              (_ds_mints, "ds_boosts", f"{DS}/token-boosts/latest/v1", None)]
+    term = SEARCH_TERMS[n % len(SEARCH_TERMS)]  # keyword search across everything DexScreener knows
     (gt if rot[1].startswith("gt_") else ds).append(rot)
+    order = [k for _, k, *_ in gt + ds]
 
     async def one_by_one(srcs):  # GeckoTerminal rate-limits bursts, so its calls stay sequential
         return [await _get_json(g, k, u, h) for _, k, u, h in srcs]
@@ -247,11 +263,14 @@ async def discover(g) -> list[str]:
                                                *(_get_json(g, k, u, h) for _, k, u, h in ds))
     got = {k: (parse, res) for (parse, k, *_), res in zip(gt + ds, gt_res + ds_res)}
     out: list[str] = []
-    for k in ("gt_new_1", f"gt_new_{p2}", "ds_profiles", "ds_boosts", rot[1]):  # original priority order
+    for k in order:
         parse, res = got[k]
         out += parse(res)
     pairs = [p for p in (js or {}).get("pairs", []) if p.get("chainId") == "solana"]
-    pairs.sort(key=lambda p: p.get("pairCreatedAt") or 0, reverse=True)
+    if established:  # most traded first: young pairs fail the age rule anyway
+        pairs.sort(key=lambda p: (p.get("volume") or {}).get("h1", 0) or 0, reverse=True)
+    else:
+        pairs.sort(key=lambda p: p.get("pairCreatedAt") or 0, reverse=True)
     out += [(p.get("baseToken") or {}).get("address") for p in pairs]
     seen, uniq = set(), []
     for m in out:
