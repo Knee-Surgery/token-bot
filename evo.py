@@ -1,17 +1,21 @@
 """
-Evolutionary paper-trading engine: launch sniping + momentum, rug-risk reasoning, trailing exits.
+Evolutionary paper-trading engine: early momentum, rug-risk reasoning, trailing exits.
 
 ENTRY: no fixed strategy filters. A token is only bought if it passes the RUG-RISK REASONING below
-(holders >= 50, top-10 holders < 80%, liquidity floor, no RugCheck danger flags, sells actually happening).
-Everything else (token age, momentum, volume, score, stricter holder limits) is an OPTIONAL gene: off by default,
-switched on or tuned by evolution only if it improves results.
+(at least EVO_MIN_AGE_MIN old, holders >= 50, top-10 holders < 80%, liquidity floor, no RugCheck danger flags,
+sells actually happening). Brand-new launches are skipped: in paper trading they produced most of the losses
+(rugs and liquidity pulls in the first minutes). Everything else (max token age, momentum, volume, score, stricter
+holder limits) is an OPTIONAL gene: off by default, switched on or tuned by evolution only if it improves results.
 
 EXIT (per variant genes): stop-loss, take-profit (45%+, aiming for 100%+), a trailing stop measured from the
 token's peak price since entry (armed once the trade is past break-even), a time cap (2 to 30 minutes), and
 emergency exits for liquidity pulls / crashes that fire even inside the minimum hold time.
 
-EVOLUTION: variants run side by side on the same market data (paper only). A variant is retired if, after
-EVO_EVAL_AFTER trades, win rate < target or net PnL < 0 (or drawdown, or it never trades). Each retirement spawns a
+EVOLUTION: variants run side by side on the same market data (paper only), at most EVO_MAX_PER_TOKEN of them in
+one token, so one rug can't sink half the population and each variant is judged on its own picks. A variant is
+retired if, after EVO_EVAL_AFTER trades, win rate < target or net PnL < 0 (or drawdown, or it never trades). The
+win-rate target is low by default: with take-profits of 45%+ against stop-losses under 8%, a strategy can be
+profitable winning one trade in three, and a high target only rewards luck. Each retirement spawns a
 child bred from the best performer, nudged by how the parent lost, plus what winning trades had in common across
 all variants, plus jitter. Survivors graduate after EVO_GRAD_TRADES trades and must pass a fresh validation window.
 
@@ -27,14 +31,14 @@ log = logging.getLogger("evo")
 STATE = Path("evo_state.json")
 
 POP = int(os.getenv("EVO_POP", "100"))
-PROVEN_WR = float(os.getenv("EVO_PROVEN_WR", "0.8"))  # win rate that keeps a bot alive and lets it breed
+PROVEN_WR = float(os.getenv("EVO_PROVEN_WR", "0.35"))  # win rate that keeps a bot alive and lets it breed
 MAX_POP = int(os.getenv("EVO_MAX_POP", "130"))          # breeding may push the population above POP, never above this
 START_USD = float(os.getenv("EVO_START_USD", "10"))
-TARGET_WR = float(os.getenv("EVO_TARGET_WINRATE", "0.9"))
+TARGET_WR = float(os.getenv("EVO_TARGET_WINRATE", "0.35"))
 REQ_WR = min(TARGET_WR, PROVEN_WR)  # win rate every check demands (lower either setting to relax it)
 CHECK_1 = int(os.getenv("EVO_CHECK_1", "5"))        # first profitability check (closed trades)
 EVAL_AFTER = CHECK_2 = int(os.getenv("EVO_CHECK_2", "10"))  # second check, same requirements; passing it graduates to validation
-MAX_PER_TOKEN = int(os.getenv("EVO_MAX_PER_TOKEN", "15"))   # max bots in one token at once (diversification, Notion load)
+MAX_PER_TOKEN = int(os.getenv("EVO_MAX_PER_TOKEN", "3"))    # max bots in one token at once (diversification, Notion load)
 KEEP_RETIRED = 150
 VAL_TRADES = int(os.getenv("EVO_VAL_TRADES", "30"))
 VAL_CHECK = int(os.getenv("EVO_VAL_CHECK", "5"))     # early check inside validation (same requirements)
@@ -53,6 +57,7 @@ HARD_HOLD = float(os.getenv("EVO_HARD_HOLD_MIN", "30"))      # only for trades t
 MAX_HOLD_FLAT = float(os.getenv("EVO_MAX_HOLD_MIN", "5"))    # everything not in profit is out by here at the latest
 
 # rug-risk reasoning (hard rules; evolution can only make them stricter)
+HARD_MIN_AGE = float(os.getenv("EVO_MIN_AGE_MIN", "15"))          # pair must be at least this old (minutes)
 HARD_MIN_HOLDERS = int(os.getenv("EVO_MIN_HOLDERS", "50"))
 HARD_MAX_TOP10 = float(os.getenv("EVO_MAX_TOP10", "80"))         # top 10 must be strictly below this
 HARD_MIN_LIQ = float(os.getenv("EVO_MIN_LIQ", "5000"))
@@ -68,7 +73,7 @@ LAUNCH_SLIP = float(os.getenv("EVO_LAUNCH_SLIP_PCT", "3"))            # paper pe
 
 SCHEMA = 4  # bump to restart all variants from fresh seeds when the rules change
 BOUNDS = {"tp": (45, 300), "sl": (1.5, 8), "hold": (1, 5), "trail": (3, 30), "size_frac": (0.1, 0.5),
-          "target_usd": (0.2, 1.5), "max_age_min": (3, 10080),
+          "target_usd": (0.2, 1.5), "max_age_min": (HARD_MIN_AGE + 15, 10080),
           "min_holders": (HARD_MIN_HOLDERS, 10000), "max_top10": (10, HARD_MAX_TOP10 - 1),
           "min_liq": (HARD_MIN_LIQ, 200000),
           "min_score": (0, 90), "min_m5": (0, 3), "max_m5": (3, 1000), "min_txns": (0, 200),
@@ -81,16 +86,16 @@ OPTIONAL = {"min_m5": (0.5, 3.0), "min_txns": (10, 100), "min_vol_h1": (5000, 10
 ANY_AGE = 10080  # max_age_min at this value = no age limit
 M5_OFF = 1000    # max_m5 at this value = no ceiling
 
-_BASE = {"tp": 100, "sl": 3, "hold": 5, "trail": 5, "size_frac": 0.25, "target_usd": 0.2, "max_age_min": 30,
+_BASE = {"tp": 100, "sl": 3, "hold": 5, "trail": 5, "size_frac": 0.25, "target_usd": 0.2, "max_age_min": 60,
          "min_holders": HARD_MIN_HOLDERS, "max_top10": HARD_MAX_TOP10 - 1, "min_liq": HARD_MIN_LIQ,
          "min_score": 0, "min_m5": 0, "max_m5": M5_OFF, "min_txns": 0, "min_vol_h1": 0,
          "lock_pull": 4.0, "stall": 8}
 SEEDS = [
-    dict(_BASE),                                                                       # pure launch sniper, 5% trail from peak
+    dict(_BASE),                                                                       # early (first hour) runner, 5% trail
     dict(_BASE, max_age_min=120, tp=60, hold=5, trail=8),                             # slightly later entries
     dict(_BASE, max_age_min=ANY_AGE, min_m5=1, min_txns=20, tp=80, trail=8),           # any age, rising only
     dict(_BASE, max_age_min=ANY_AGE, trail=12),                                        # any age, rug checks only
-    dict(_BASE, max_age_min=15, min_holders=200, max_top10=50, min_liq=10000, tp=150, trail=15),  # careful launch
+    dict(_BASE, max_age_min=45, min_holders=200, max_top10=50, min_liq=10000, tp=150, trail=15),  # careful early
 ]
 
 
@@ -99,9 +104,8 @@ def load() -> dict:
     if STATE.exists():
         S = json.loads(STATE.read_text())
         if S.get("schema") == SCHEMA:
-            for v in S["variants"].values():  # variants born before a gene existed get its default
-                for k, d in GENE_DEFAULT.items():
-                    v["genome"].setdefault(k, d)
+            for v in S["variants"].values():  # bring old genomes inside today's bounds; missing genes get defaults
+                v["genome"] = clamp(v["genome"])
             return S
         # rules changed: start variants fresh, keep pause flag and Telegram offset
         return {"schema": SCHEMA, "variants": {}, "next_id": 1, "acache": {},
@@ -397,6 +401,11 @@ def rug_ok(a: dict, p: dict) -> tuple[bool, str]:
         return False, "RugCheck marks it rugged"
     if a.get("danger"):
         return False, "RugCheck danger-level risk"
+    age = pair_age_min(p)
+    if age is None:
+        return False, "pair age unknown"
+    if age < HARD_MIN_AGE:
+        return False, f"pair only {age:.0f} min old (min {HARD_MIN_AGE:.0f})"
     h, t = a.get("holders"), a.get("top10")
     if h is None or t is None:
         return False, "holder data unavailable"
@@ -614,6 +623,8 @@ async def scan(g, S, pc, events):
         if not p or not p.get("priceUsd"):
             continue
         age = pair_age_min(p, now)
+        if age is None or age < HARD_MIN_AGE:
+            continue  # too new for the rug rules; don't spend one of the few analyses per scan on it
         wanting = [v for v in free if now - v["cooldown"].get(mint, 0) > COOLDOWN_MIN * 60
                    and entry_ok(p, v["genome"], age)]
         if not wanting:

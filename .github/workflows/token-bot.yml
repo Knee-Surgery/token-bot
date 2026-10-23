@@ -43,8 +43,9 @@ jobs:
           EVO_START_USD: "10"
           LOOP_SECONDS: "1500"
           SCALP_TARGET_USD: "0.20"
-          # lower this (for example "0.5") to let big-target variants survive on profit instead of win rate
-          EVO_TARGET_WINRATE: "0.9"
+          # with take-profits of 45%+ and stop-losses under 8%, about 1 win in 3 is profitable; a high target only
+          # rewards luck. Every check also requires net profit.
+          EVO_TARGET_WINRATE: "0.35"
 
       - name: Save state
         if: always()
