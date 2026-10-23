@@ -4884,9 +4884,31 @@
     "symbol": "XMW",
     "danger": false
    }
+  },
+  "ecatcLBCFkbNWxrdpDtGnZkVcKThqFXHPs7jUT1XJ7L": {
+   "ts": 1792758325.606208,
+   "a": {
+    "score": 0,
+    "liq": 9100.03,
+    "holders": 912,
+    "top10": 21.03,
+    "symbol": "eCat",
+    "danger": false
+   }
+  },
+  "Mq2mtyhYy8Y5x2gDxP1rgZMYkPya4PxnDbfAi2Gv7T4": {
+   "ts": 1792758440.014634,
+   "a": {
+    "score": 10,
+    "liq": 41144.6,
+    "holders": 272,
+    "top10": 7.89,
+    "symbol": "NEX Ai",
+    "danger": true
+   }
   }
  },
  "halted": false,
- "tg_offset": 872775040,
+ "tg_offset": 872775046,
  "await": null
 }
