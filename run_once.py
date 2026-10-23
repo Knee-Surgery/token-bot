@@ -61,8 +61,11 @@ async def main():
     tb = Bot(bot.BOT_TOKEN)
     g = vars(bot)
     if EVO_MODE:
-        await evo.run(tb, g, LOOP_SECONDS)
-        await bot.http.aclose()
+        async with tb:  # opens Telegram connections once and closes them cleanly at the end
+            try:
+                await evo.run(tb, g, LOOP_SECONDS)
+            finally:
+                await bot.http.aclose()
         return
 
     if not bot.DRY_RUN and os.getenv("ALLOW_LIVE_ACTIONS") != "true":

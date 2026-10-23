@@ -10,7 +10,7 @@ Commands (owner only):
 
 Every trade requires a button tap. Nothing runs automatically.
 """
-import os, time, base64, logging, secrets
+import os, time, base64, logging, secrets, asyncio
 from datetime import date
 
 import httpx
@@ -48,7 +48,8 @@ if os.getenv("WALLET_PRIVATE_KEY"):
 
 pending: dict[str, dict] = {}
 spend = {"day": date.today(), "sol": 0.0}
-http = httpx.AsyncClient(timeout=20)
+http = httpx.AsyncClient(timeout=httpx.Timeout(15, connect=5),
+                         limits=httpx.Limits(max_connections=50, max_keepalive_connections=20))
 
 
 # ---------- helpers ----------
@@ -78,15 +79,26 @@ async def token_balance(mint: str) -> tuple[int, int]:
 
 
 # ---------- analysis ----------
+async def _rugcheck(mint: str) -> dict | None:
+    try:
+        fr = await http.get(f"https://api.rugcheck.xyz/v1/tokens/{mint}/report")
+        return fr.json() if fr.status_code == 200 else None
+    except Exception as e:
+        log.warning("rugcheck failed: %s", e)
+        return None
+
+
 async def analyze(mint: str) -> dict:
     out = {"mint": mint, "flags": [], "score": 50, "liq": 0.0, "lines": []}
-    r = await http.get(f"https://api.dexscreener.com/latest/dex/tokens/{mint}")
+    # DexScreener and RugCheck in parallel; the full report also carries the summary's risks and score
+    r, rep = await asyncio.gather(http.get(f"https://api.dexscreener.com/latest/dex/tokens/{mint}"), _rugcheck(mint))
     pairs = [p for p in (r.json().get("pairs") or []) if p.get("chainId") == "solana"]
     if not pairs:
         out["flags"].append("No Solana trading pairs found")
         out["score"] = 0
         return out
-    p = max(pairs, key=lambda x: (x.get("liquidity") or {}).get("usd", 0))
+    p = max(pairs, key=lambda x: (x.get("liquidity") or {}).get("usd", 0) or 0)
+    out["pair"] = p
     liq = (p.get("liquidity") or {}).get("usd", 0) or 0
     vol24 = (p.get("volume") or {}).get("h24", 0) or 0
     ch = p.get("priceChange") or {}
@@ -106,28 +118,18 @@ async def analyze(mint: str) -> dict:
     if buys and sells == 0: s -= 20; out["flags"].append("Zero sells - possible honeypot")
     if (ch.get("h24") or 0) > 300: s -= 10; out["flags"].append("Up >300% in 24h - chasing risk")
 
-    # RugCheck (best effort)
+    # RugCheck (best effort): risks + score, holders, authorities, LP lock, insiders, creator, fees
+    # (gate fails closed on holders)
+    out["holders"], out["top10"] = None, None
+    out["rc"] = {}
     try:
-        rc = await http.get(f"https://api.rugcheck.xyz/v1/tokens/{mint}/report/summary")
-        if rc.status_code == 200:
-            j = rc.json()
-            risks = j.get("risks") or []
-            for rk in risks[:6]:
+        if rep:
+            for rk in (rep.get("risks") or [])[:6]:
                 lvl = rk.get("level", "")
                 out["flags"].append(f"RugCheck [{lvl}]: {rk.get('name')}")
                 if lvl == "danger": s -= 15
                 elif lvl == "warn": s -= 5
-            out["lines"].append(f"RugCheck score (higher = riskier): {j.get('score_normalised', j.get('score'))}")
-    except Exception as e:
-        log.warning("rugcheck failed: %s", e)
-
-    # Full RugCheck report: holders plus authorities, LP lock, insiders, creator, fees (best effort; gate fails closed on holders)
-    out["holders"], out["top10"] = None, None
-    out["rc"] = {}
-    try:
-        fr = await http.get(f"https://api.rugcheck.xyz/v1/tokens/{mint}/report")
-        if fr.status_code == 200:
-            rep = fr.json()
+            out["lines"].append(f"RugCheck score (higher = riskier): {rep.get('score_normalised', rep.get('score'))}")
             out["holders"] = rep.get("totalHolders")
             skip = set()
             lp_locked = []

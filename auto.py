@@ -11,7 +11,7 @@ Hard gates for every entry: liquidity, >= MIN_HOLDERS holders, top-10 <= MAX_TOP
 Halts itself (no new entries) if, after AUTO_EVAL_AFTER closed trades, win rate < AUTO_TARGET_WINRATE
 or net PnL < 0, or if drawdown exceeds AUTO_MAX_DRAWDOWN_PCT. No auto-resume: delete auto_state.json.
 """
-import json, os, time, logging, urllib.parse
+import asyncio, json, os, time, logging, urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -126,12 +126,12 @@ def solscan(sig): return f"https://solscan.io/tx/{sig}" if sig else None
 async def best_pair(g, mint):
     r = await g["http"].get(f"https://api.dexscreener.com/latest/dex/tokens/{mint}")
     ps = [p for p in (r.json().get("pairs") or []) if p.get("chainId") == "solana"]
-    return max(ps, key=lambda x: (x.get("liquidity") or {}).get("usd", 0)) if ps else None
+    return max(ps, key=lambda x: (x.get("liquidity") or {}).get("usd", 0) or 0) if ps else None
 
 
 async def px(g, mint):
     p = await best_pair(g, mint)
-    if not p:
+    if not p or not p.get("priceUsd"):
         return None, 0.0
     return float(p["priceUsd"]), float((p.get("liquidity") or {}).get("usd", 0))
 
@@ -225,22 +225,27 @@ async def discover(g) -> list[str]:
     """Candidate mints, newest first. Several sources every scan, plus rotating ones, so coverage keeps widening."""
     n = _tick["n"]
     _tick["n"] += 1
-    out: list[str] = []
-    for page in (1, 2 + n % 2):  # newest pools: page 1 every scan, pages 2 and 3 alternating
-        out += _gt_mints(await _get_json(g, f"gt_new_{page}", f"{GT_BASE}/new_pools?page={page}", GT_HEADERS))
-    out += _ds_mints(await _get_json(g, "ds_profiles", f"{DS}/token-profiles/latest/v1"))
-    out += _ds_mints(await _get_json(g, "ds_boosts", f"{DS}/token-boosts/latest/v1"))
-    rot = n % 4  # one rotating source per scan keeps every API inside its rate limit
-    if rot == 0:
-        out += _gt_mints(await _get_json(g, "gt_trending", f"{GT_BASE}/trending_pools", GT_HEADERS))
-    elif rot == 1:
-        out += _gt_mints(await _get_json(g, "gt_volume", f"{GT_BASE}/pools?sort=h24_volume_usd_desc", GT_HEADERS))
-    elif rot == 2:
-        out += _ds_mints(await _get_json(g, "ds_boosts_top", f"{DS}/token-boosts/top/v1"))
-    else:
-        out += _ds_mints(await _get_json(g, "ds_takeovers", f"{DS}/community-takeovers/latest/v1"))
+    p2 = 2 + n % 2  # newest pools: page 1 every scan, pages 2 and 3 alternating
+    rot = [  # one rotating source per scan keeps every API inside its rate limit
+        (_gt_mints, "gt_trending", f"{GT_BASE}/trending_pools", GT_HEADERS),
+        (_gt_mints, "gt_volume", f"{GT_BASE}/pools?sort=h24_volume_usd_desc", GT_HEADERS),
+        (_ds_mints, "ds_boosts_top", f"{DS}/token-boosts/top/v1", None),
+        (_ds_mints, "ds_takeovers", f"{DS}/community-takeovers/latest/v1", None),
+    ][n % 4]
     term = SEARCH_TERMS[n % len(SEARCH_TERMS)]  # keyword search across everything DexScreener knows, newest first
-    js = await _get_json(g, "ds_search", f"{DS}/latest/dex/search?q={term}")
+    sources = [
+        (_gt_mints, "gt_new_1", f"{GT_BASE}/new_pools?page=1", GT_HEADERS),
+        (_gt_mints, f"gt_new_{p2}", f"{GT_BASE}/new_pools?page={p2}", GT_HEADERS),
+        (_ds_mints, "ds_profiles", f"{DS}/token-profiles/latest/v1", None),
+        (_ds_mints, "ds_boosts", f"{DS}/token-boosts/latest/v1", None),
+        rot,
+    ]
+    # all sources at once (same request count as before, so rate limits are unchanged; just no waiting in line)
+    *results, js = await asyncio.gather(*(_get_json(g, k, u, h) for _, k, u, h in sources),
+                                        _get_json(g, "ds_search", f"{DS}/latest/dex/search?q={term}"))
+    out: list[str] = []
+    for (parse, *_), res in zip(sources, results):
+        out += parse(res)
     pairs = [p for p in (js or {}).get("pairs", []) if p.get("chainId") == "solana"]
     pairs.sort(key=lambda p: p.get("pairCreatedAt") or 0, reverse=True)
     out += [(p.get("baseToken") or {}).get("address") for p in pairs]
@@ -255,9 +260,9 @@ async def discover(g) -> list[str]:
 async def best_pairs(g, mints: list[str]) -> dict:
     """Batch lookup, 30 mints per request: {mint: best Solana pair}. Missing mints are simply absent."""
     out: dict = {}
-    for i in range(0, len(mints), 30):
-        chunk = mints[i:i + 30]
-        js = await _get_json(g, "ds_batch", f"{DS}/tokens/v1/solana/" + ",".join(chunk))
+    chunks = [mints[i:i + 30] for i in range(0, len(mints), 30)]
+    replies = await asyncio.gather(*(_get_json(g, "ds_batch", f"{DS}/tokens/v1/solana/" + ",".join(c)) for c in chunks))
+    for chunk, js in zip(chunks, replies):
         pairs = js if isinstance(js, list) else ((js or {}).get("pairs") or [])
         want = set(chunk)
         out.update({m: p for m, p in _pick_best(pairs).items() if m in want})

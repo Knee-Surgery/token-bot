@@ -2,7 +2,7 @@
 Button menu for the Telegram bot (inline keyboard, edits the same message in place).
 Tap /start or send any text to open it. Used by evo.py; no slash commands needed.
 """
-import os, time, logging
+import asyncio, os, time, logging
 
 from telegram import InlineKeyboardButton as Btn, InlineKeyboardMarkup as Markup
 
@@ -66,7 +66,7 @@ def search_markup(rows):
 async def analysis_text(g, mint: str) -> str:
     a = await g["analyze"](mint)
     text = g["fmt_analysis"](a)
-    p = await auto.best_pair(g, mint)
+    p = a.get("pair")  # analyze() already fetched the best pair; no second DexScreener call
     if p:
         ra = {"holders": a.get("holders"), "top10": a.get("top10"),
               "danger": any("[danger]" in f for f in (a.get("flags") or []))}
@@ -76,24 +76,25 @@ async def analysis_text(g, mint: str) -> str:
     return text
 
 
-async def screen(g, S, key):
+async def screen(g, S, key, pc):
     if key == "lb":
         return evo.leaderboard(S)
     if key == "open":
+        # snapshot first: the trading loop may open/close positions while we await prices
+        rows = [(v, mint, pos) for v in list(S["variants"].values()) for mint, pos in list(v["positions"].items())]
+        shown = rows[:30]
+        await evo.prefetch(g, pc, [m for _, m, _ in shown], 8)  # one batched request, shared with the trading loop
         lines = []
-        for v in S["variants"].values():
-            for mint, pos in v["positions"].items():
-                try:
-                    p = await evo.get_pair(g, mint, {}, 0)
-                    cur = f"{(float(p['priceUsd']) / pos['entry_price'] - 1) * 100:+.1f}%"
-                except Exception:
-                    cur = "?"
-                if len(lines) >= 30:
-                    break
-                lines.append(f"{v['id']} {pos['name']}  {cur}  (TP {pos['tp']}% / SL {pos['sl']}% / "
-                             f"trail {pos.get('trail', '-')}%{' ARMED' if pos.get('armed') else ''}, "
-                             f"{(time.time() - pos['ts']) / 60:.0f}m of {pos['hold']}m)")
-        total = sum(len(v["positions"]) for v in S["variants"].values())
+        for v, mint, pos in shown:
+            try:
+                p = await evo.get_pair(g, mint, pc, 8)
+                cur = f"{(float(p['priceUsd']) / pos['entry_price'] - 1) * 100:+.1f}%"
+            except Exception:
+                cur = "?"
+            lines.append(f"{v['id']} {pos['name']}  {cur}  (TP {pos['tp']}% / SL {pos['sl']}% / "
+                         f"trail {pos.get('trail', '-')}%{' ARMED' if pos.get('armed') else ''}, "
+                         f"{(time.time() - pos['ts']) / 60:.0f}m of {pos['hold']}m)")
+        total = len(rows)
         return f"OPEN TRADES (paper): {total} open" + (" (showing 30)" if total > 30 else "") + "\n\n" + ("\n".join(lines) or "None open right now.")
     if key == "recent":
         rows = [(t["ts"], v["id"], t) for v in S["variants"].values() for t in v["closed"]]
@@ -146,56 +147,70 @@ async def _edit(tb, g, q, text, markup):
         await tb.send_message(g["OWNER_ID"], text[:3900], reply_markup=markup)
 
 
-async def handle(tb, g, S):
-    try:
-        updates = await tb.get_updates(offset=S.get("tg_offset"), timeout=0,
-                                       allowed_updates=["message", "callback_query"])
-    except Exception as e:
-        log.warning("getUpdates failed: %s", e)
-        return
-    owner = g["OWNER_ID"]
-    for u in updates:
-        S["tg_offset"] = u.update_id + 1
+async def poll(tb, g, S, pc):
+    """Long polling: Telegram holds the request open and returns the moment a message or tap arrives, so replies
+    are near-instant. Runs as its own task next to the trading loop; cancelled when the run ends."""
+    while True:
         try:
-            if u.callback_query:
-                q = u.callback_query
-                if q.from_user.id != owner:
-                    continue
-                try:
-                    await q.answer()
-                except Exception:
-                    pass  # too old if it waited for the next run; the edit below still works
-                key = (q.data or "m:menu").split(":", 1)[1]
-                S["await"] = None
-                if key == "analyze":
-                    S["await"] = "analyze"
-                    await _edit(tb, g, q, "Send a coin name, symbol or mint address.\n\nI'll search Solana "
-                                          "coins and show the best matches.", BACK)
-                elif key.startswith("a:"):
-                    await _edit(tb, g, q, "Analysing...", None)
-                    await tb.send_message(owner, (await analysis_text(g, key[2:]))[:3900], reply_markup=BACK)
-                elif key in ("pause", "resume"):
-                    S["halted"] = key == "pause"
-                    await _edit(tb, g, q, menu_text(S), menu_markup(S))
-                elif key == "menu":
-                    await _edit(tb, g, q, menu_text(S), menu_markup(S))
-                else:
-                    await _edit(tb, g, q, await screen(g, S, key), BACK)
-            elif u.message and u.message.from_user and u.message.from_user.id == owner and u.message.text:
-                text = u.message.text.strip()
-                if S.get("await") == "analyze" and not text.startswith("/"):
-                    S["await"] = None
-                    if 32 <= len(text) <= 44 and text.isalnum():      # a mint address: analyse it directly
-                        await tb.send_message(owner, "Analysing...")
-                        await tb.send_message(owner, (await analysis_text(g, text))[:3900], reply_markup=BACK)
-                    else:                                              # a name or symbol: search
-                        await tb.send_message(owner, "Searching...")
-                        rows = await auto.search_coins(g, text)
-                        await tb.send_message(owner, fmt_search(text, rows)[:3900], reply_markup=search_markup(rows))
-                elif text.split()[0].split("@")[0].lower() == "/halt":
-                    S["halted"] = True
-                    await tb.send_message(owner, menu_text(S), reply_markup=menu_markup(S))
-                else:
-                    await tb.send_message(owner, menu_text(S), reply_markup=menu_markup(S))
+            updates = await tb.get_updates(offset=S.get("tg_offset"), timeout=25,
+                                           allowed_updates=["message", "callback_query"])
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
-            log.warning("menu update failed: %s", e)
+            log.warning("getUpdates failed: %s", e)
+            await asyncio.sleep(3)
+            continue
+        for u in updates:
+            await handle_update(tb, g, S, pc, u)
+            S["tg_offset"] = u.update_id + 1  # after handling: an update cut off by shutdown is retried next run
+
+
+async def handle_update(tb, g, S, pc, u):
+    owner = g["OWNER_ID"]
+    try:
+        if u.callback_query:
+            q = u.callback_query
+            if q.from_user.id != owner:
+                return
+            try:
+                await q.answer()
+            except Exception:
+                pass  # too old if it waited for the next run; the edit below still works
+            key = (q.data or "m:menu").split(":", 1)[1]
+            S["await"] = None
+            if key == "analyze":
+                S["await"] = "analyze"
+                await _edit(tb, g, q, "Send a coin name, symbol or mint address.\n\nI'll search Solana "
+                                      "coins and show the best matches.", BACK)
+            elif key.startswith("a:"):
+                await _edit(tb, g, q, "Analysing...", None)
+                await tb.send_message(owner, (await analysis_text(g, key[2:]))[:3900], reply_markup=BACK)
+            elif key in ("pause", "resume"):
+                S["halted"] = key == "pause"
+                await _edit(tb, g, q, menu_text(S), menu_markup(S))
+            elif key == "menu":
+                await _edit(tb, g, q, menu_text(S), menu_markup(S))
+            else:
+                await _edit(tb, g, q, await screen(g, S, key, pc), BACK)
+        elif u.message and u.message.from_user and u.message.from_user.id == owner and u.message.text:
+            text = u.message.text.strip()
+            if S.get("await") == "analyze" and text and not text.startswith("/"):
+                S["await"] = None
+                if 32 <= len(text) <= 44 and text.isalnum():      # a mint address: analyse it directly
+                    await tb.send_message(owner, "Analysing...")
+                    await tb.send_message(owner, (await analysis_text(g, text))[:3900], reply_markup=BACK)
+                else:                                              # a name or symbol: search
+                    await tb.send_message(owner, "Searching...")
+                    rows = await auto.search_coins(g, text)
+                    await tb.send_message(owner, fmt_search(text, rows)[:3900], reply_markup=search_markup(rows))
+            elif (text.split() or [""])[0].split("@")[0].lower() == "/halt":
+                S["halted"] = True
+                await tb.send_message(owner, menu_text(S), reply_markup=menu_markup(S))
+            else:
+                await tb.send_message(owner, menu_text(S), reply_markup=menu_markup(S))
+    except Exception as e:
+        log.warning("menu update failed: %s", e)
+        try:  # never leave the user staring at "Analysing..." / "Searching..."
+            await tb.send_message(owner, f"Sorry, that failed: {e}"[:500], reply_markup=BACK)
+        except Exception:
+            pass

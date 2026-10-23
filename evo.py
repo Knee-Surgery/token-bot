@@ -17,7 +17,7 @@ all variants, plus jitter. Survivors graduate after EVO_GRAD_TRADES trades and m
 
 Paper only. Paper fills are optimistic, especially at launch: results will be worse live.
 """
-import json, math, os, random, re, time, logging
+import asyncio, json, math, os, random, re, time, logging
 from collections import Counter
 from pathlib import Path
 
@@ -516,9 +516,19 @@ def decide_exit(pos: dict, price: float, liq: float, now: float) -> str | None:
 
 
 # ---------- jobs ----------
+async def prefetch(g, pc, mints, ttl):
+    """Refresh the price cache for many mints with batch requests (30 per call) instead of one call each."""
+    now = time.time()
+    stale = list({m for m in mints if not (pc.get(m) and now - pc[m][0] < ttl)})
+    if stale:
+        for m, p in (await auto.best_pairs(g, stale)).items():
+            pc[m] = (now, p)
+
+
 async def monitor(g, S, pc, events, notes_out):
     n_open = sum(len(v["positions"]) for v in S["variants"].values())
     patch_every = max(60, n_open * 0.8)  # keep Notion under its rate limit when many bots are open
+    await prefetch(g, pc, [m for v in S["variants"].values() if v["status"] != "retired" for m in v["positions"]], 8)
     for v in list(S["variants"].values()):
         if v["status"] == "retired":
             continue
@@ -552,8 +562,7 @@ async def monitor(g, S, pc, events, notes_out):
                 del v["positions"][mint]
                 cum = sum(t["pnl_usd"] for t in v["closed"])
                 result = "Win" if net > 0 else "Loss" if net < 0 else "Breakeven"
-                await auto.n_patch(g, pos.get("page_id"), {"archived": True})
-                await auto.n_create(g, auto.DB_CLOSED, {
+                await asyncio.gather(auto.n_patch(g, pos.get("page_id"), {"archived": True}), auto.n_create(g, auto.DB_CLOSED, {
                     "Token": auto._title(pos["name"]), "Mint": auto._text(mint),
                     "Entry Time": auto._date(pos["ts"]), "Exit Time": auto._date(now),
                     "Entry Price (USD)": auto._num(pos["entry_price"]), "Exit Price (USD)": auto._num(price),
@@ -563,12 +572,12 @@ async def monitor(g, S, pc, events, notes_out):
                     "Score": auto._num(pos.get("score")), "Holders": auto._num(pos.get("holders")),
                     "Top 10 %": auto._num(pos.get("top10")), "Mode": auto._sel("Paper"),
                     "Notes": auto._text(f"Variant {v['id']} gen{v['gen']} | peak "
-                                        f"{(pos['peak_price'] / pos['entry_price'] - 1) * 100:+.0f}% | trail {pos['trail']}%")})
-                await auto.n_create(g, auto.DB_EVENTS, {
+                                        f"{(pos['peak_price'] / pos['entry_price'] - 1) * 100:+.0f}% | trail {pos['trail']}%")}),
+                    auto.n_create(g, auto.DB_EVENTS, {
                     "Event": auto._title(f"Exit {pos['name']} [{v['id']}]"), "Type": auto._sel("Exit"),
                     "Token": auto._text(pos["name"]), "Time": auto._date(now), "Price (USD)": auto._num(price),
                     "Realised PnL (USD)": auto._num(pnl_usd), "Cumulative PnL (USD)": auto._num(cum),
-                    "Mode": auto._sel("Paper")})
+                    "Mode": auto._sel("Paper")}))
                 if NOTIFY_TRADES or why in ("liquidity collapse", "crash exit"):
                     events.append(f"[{v['id']}] closed {pos['name']} ({why}) {net:+.1f}% = {pnl_usd:+.2f} USD")
                 apply_judgement(S, v, events)
@@ -593,9 +602,7 @@ async def scan(g, S, pc, events):
     random.shuffle(free)
 
     cands = (await auto.discover(g))[:CANDIDATE_LIMIT]
-    stale = [m for m in cands if not (pc.get(m) and now - pc[m][0] < 15)]
-    for m, p in (await auto.best_pairs(g, stale)).items():  # one request per 30 coins instead of one each
-        pc[m] = (now, p)
+    await prefetch(g, pc, cands, 15)  # one request per 30 coins instead of one each
     analyses = 0
     for mint in cands:
         if not free:
@@ -664,7 +671,7 @@ async def scan(g, S, pc, events):
             name = auto.token_name(a, mint)
             size_tokens = size_usd / fill
             ts = time.time()
-            page_id = await auto.n_create(g, auto.DB_OPEN, {
+            page_id, _ = await asyncio.gather(auto.n_create(g, auto.DB_OPEN, {
                 "Token": auto._title(name), "Mint": auto._text(mint), "Entry Time": auto._date(ts),
                 "Entry Price (USD)": auto._num(fill), "Current Price (USD)": auto._num(price),
                 "Size (Tokens)": auto._num(size_tokens), "Cost Basis (USD)": auto._num(size_usd),
@@ -674,11 +681,11 @@ async def scan(g, S, pc, events):
                 "Mode": auto._sel("Paper"),
                 "Notes": auto._text(f"Variant {v['id']} gen{v['gen']} | age "
                                     f"{'?' if age is None else f'{age:.0f}m'} | TP {gn['tp']}% SL {gn['sl']}% "
-                                    f"trail {gn['trail']}% hold {gn['hold']}m")})
-            await auto.n_create(g, auto.DB_EVENTS, {
+                                    f"trail {gn['trail']}% hold {gn['hold']}m")}),
+                auto.n_create(g, auto.DB_EVENTS, {
                 "Event": auto._title(f"Entry {name} [{v['id']}]"), "Type": auto._sel("Entry"),
                 "Token": auto._text(name), "Time": auto._date(ts), "Price (USD)": auto._num(fill),
-                "Mode": auto._sel("Paper")})
+                "Mode": auto._sel("Paper")}))
             v["positions"][mint] = {"name": name, "entry_price": fill, "entry_liq": liq, "ts": ts,
                                     "cost_usd": size_usd, "size_tokens": size_tokens, "score": a["score"],
                                     "holders": a["holders"], "top10": a["top10"], "tp": gn["tp"], "sl": gn["sl"],
@@ -763,34 +770,38 @@ async def sweep_orphans(g, S) -> int:
 
 
 async def run(tb, g, loop_seconds: int):
-    import asyncio
     import menu  # lazy import: menu.py imports this module
     S = load()
     events: list[str] = []
     ensure_population(S, events)
     pc: dict = {}
     start = time.time()
-    last_scan = last_cmd = last_mon = 0.0
+    last_scan = last_mon = 0.0
+    # Telegram runs in its own task with long polling, so taps and messages are answered within about a second
+    # instead of waiting for the next 10 s tick and for slow scans / Notion writes to finish.
+    tg = asyncio.create_task(menu.poll(tb, g, S, pc))
     try:
-        n = await sweep_orphans(g, S)
-        if n:
-            events.append(f"Cleaned {n} stale row(s) from Notion Open Trades")
-    except Exception as e:
-        log.warning("sweep error: %s", e)
-    while True:
-        now = time.time()
-        try:
-            if now - last_cmd >= 10:
-                await menu.handle(tb, g, S); last_cmd = now
-            if now - last_mon >= 10:
-                await monitor(g, S, pc, events, None); last_mon = now
-            if now - last_scan >= 20:
-                await scan(g, S, pc, events); last_scan = now
-            save(S)
-            await flush(tb, g, events)
+        try:  # before any new entries, so rows being created can't be mistaken for orphans
+            n = await sweep_orphans(g, S)
+            if n:
+                events.append(f"Cleaned {n} stale row(s) from Notion Open Trades")
         except Exception as e:
-            log.exception("cycle error: %s", e)
-        if time.time() - start + 10 >= loop_seconds:
-            break
-        await asyncio.sleep(10)
-    save(S)
+            log.warning("sweep error: %s", e)
+        while True:
+            now = time.time()
+            try:
+                if now - last_mon >= 10:
+                    await monitor(g, S, pc, events, None); last_mon = now
+                if now - last_scan >= 20:
+                    await scan(g, S, pc, events); last_scan = now
+                save(S)
+                await flush(tb, g, events)
+            except Exception as e:
+                log.exception("cycle error: %s", e)
+            if time.time() - start + 10 >= loop_seconds:
+                break
+            await asyncio.sleep(10)
+    finally:
+        tg.cancel()
+        await asyncio.gather(tg, return_exceptions=True)
+        save(S)
