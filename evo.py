@@ -74,6 +74,18 @@ RECOVERY_HOLD = float(os.getenv("EVO_RECOVERY_HOLD_MIN", "15"))
 RECOVERY_CHECK_N = int(os.getenv("EVO_RECOVERY_CHECK_N", "40"))       # pause them if net negative after this many
 
 
+# bots that have not (yet) proven themselves trade this fraction of their normal size. Walk-forward replay of 1,421
+# paper trades: unproven bots lost $0.232/trade, already-proven ones $0.017/trade; at 40% the same trades lost
+# $127.63 instead of $317.71. Entry decisions are unchanged, only the stake.
+UNPROVEN_SIZE = float(os.getenv("EVO_UNPROVEN_SIZE", "0.4"))
+
+
+def proven_now(v) -> bool:
+    """Meets the profit checks on its counted trades right now (5+ counted trades, win rate, net profit)."""
+    T = test_trades(v)
+    return len(T) >= CHECK_1 and meets(T)[0]
+
+
 def test_trades(v) -> list:
     """The trades a bot is tested on: wins of WIN_MIN_PCT or more, and every loss (recovery trades are not in
     v["closed"] at all)."""
@@ -903,6 +915,8 @@ async def scan(g, S, pc, events):
             target = max(TARGET_USD, float(gn.get("target_usd", TARGET_USD)))
             if exp_net < target * 0.9:
                 continue  # position too small to net the variant's dollar target at its TP
+            if not proven_now(v):  # same trade, smaller stake until the bot has proven itself
+                size_usd *= UNPROVEN_SIZE
             await open_position(g, v, mint, p, a, age, size_usd, gn)
             free.remove(v)
             slots -= 1
