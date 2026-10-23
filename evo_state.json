@@ -3761,9 +3761,46 @@
    "reason": "",
    "paper_usd": 10.0,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "57SF73wzpRprHUpLTfMKfu7H8gATrF1EvefySZ49pump": {
+     "name": "Token57mp",
+     "entry_price": 7.39849e-05,
+     "entry_liq": 21163.52,
+     "ts": 1792766254.921436,
+     "cost_usd": 2.5,
+     "size_tokens": 33790.678908804366,
+     "score": 30,
+     "holders": 2018,
+     "top10": 3.76,
+     "tp": 80.0,
+     "sl": 3.0,
+     "hold": 5,
+     "trail": 10.0,
+     "page_id": "40293233-c104-816b-8f84-cbdfeea35db9",
+     "lock_pull": 4.0,
+     "stall": 2,
+     "feat": {
+      "m5": 66.03,
+      "h1": 66.03,
+      "liq": 21163.52,
+      "vol_h1": 37602.17,
+      "txns": 1117,
+      "holders": 2018,
+      "top10": 3.76,
+      "score": 30,
+      "age": 3.507787272135417
+     },
+     "peak_price": 8.064e-05,
+     "last_price": 8.064e-05,
+     "down_ticks": 0,
+     "last_patch": 1792766328.1620092,
+     "armed": true
+    }
+   },
    "closed": [],
-   "cooldown": {},
+   "cooldown": {
+    "57SF73wzpRprHUpLTfMKfu7H8gATrF1EvefySZ49pump": 1792766254.921436
+   },
    "created": 1792765586.2460268,
    "val_start": 0
   },
@@ -3903,11 +3940,68 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.231945911362066,
    "start_usd": 10.0,
-   "positions": {},
-   "closed": [],
-   "cooldown": {},
+   "positions": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.04969,
+     "entry_liq": 602652.35,
+     "ts": 1792766195.4505882,
+     "cost_usd": 2.3079864778405166,
+     "size_tokens": 46.44770532985544,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
+     "tp": 80.0,
+     "sl": 3.0,
+     "hold": 5,
+     "trail": 10.0,
+     "page_id": "40293233-c104-8105-9e5b-f88c67fb2c2b",
+     "lock_pull": 4.0,
+     "stall": 8,
+     "feat": {
+      "m5": 1.09,
+      "h1": 4.19,
+      "liq": 602652.35,
+      "vol_h1": 17376.49,
+      "txns": 328,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1033.184017207845
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766339.898673
+    }
+   },
+   "closed": [
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7680540886379333,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766141.968371,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.40111357421875
+     }
+    }
+   ],
+   "cooldown": {
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766099.6291904,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766195.4505882
+   },
    "created": 1792765586.2464066,
    "val_start": 0
   },
@@ -4007,26 +4101,51 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.950989208633093,
    "start_usd": 10.0,
    "positions": {
-    "ChjYk79x48RLPRKbKJcz5bfZ17rJXSgy9toreEaupump": {
-     "name": "USDF",
-     "entry_price": 0.3892,
-     "entry_liq": 1689406.21,
-     "ts": 1792765636.7162805,
-     "cost_usd": 2.5,
-     "size_tokens": 6.423432682425489,
-     "score": 50,
-     "holders": 4423,
-     "top10": 0.66,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.04941,
+     "entry_liq": 600987.83,
+     "ts": 1792766156.5783393,
+     "cost_usd": 2.487747302158273,
+     "size_tokens": 50.34906501028685,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
      "tp": 156.69,
      "sl": 3.0,
      "hold": 5,
      "trail": 10.0,
-     "page_id": "40293233-c104-8179-bde9-d58f77b11d4f",
+     "page_id": "40293233-c104-81fb-adeb-f2cb7980e1c2",
      "lock_pull": 4.0,
      "stall": 8,
+     "feat": {
+      "m5": 0.54,
+      "h1": 3.61,
+      "liq": 600987.83,
+      "vol_h1": 17199.32,
+      "txns": 288,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1032.5519085327148
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766303.802328
+    }
+   },
+   "closed": [
+    {
+     "mint": "ChjYk79x48RLPRKbKJcz5bfZ17rJXSgy9toreEaupump",
+     "pnl_pct": -1.9604316546762623,
+     "pnl_usd": -0.049010791366906566,
+     "win": false,
+     "why": "max hold time",
+     "ts": 1792766076.1396012,
      "feat": {
       "m5": 0.48,
       "h1": 2.01,
@@ -4037,16 +4156,12 @@
       "top10": 0.66,
       "score": 50,
       "age": 2159.32921155599
-     },
-     "peak_price": 0.3898,
-     "last_price": 0.3898,
-     "down_ticks": 0,
-     "last_patch": 1792765843.8597922
+     }
     }
-   },
-   "closed": [],
+   ],
    "cooldown": {
-    "ChjYk79x48RLPRKbKJcz5bfZ17rJXSgy9toreEaupump": 1792765636.7162805
+    "ChjYk79x48RLPRKbKJcz5bfZ17rJXSgy9toreEaupump": 1792765636.7162805,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766156.5783393
    },
    "created": 1792765586.2465994,
    "val_start": 0
@@ -4247,7 +4362,41 @@
    "reason": "",
    "paper_usd": 9.560188465457271,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.04969,
+     "entry_liq": 602652.35,
+     "ts": 1792766194.8884647,
+     "cost_usd": 2.3900471163643178,
+     "size_tokens": 48.09915710131451,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
+     "tp": 80.0,
+     "sl": 3.0,
+     "hold": 5,
+     "trail": 10.0,
+     "page_id": "40293233-c104-8119-a71a-fd98eead5d16",
+     "lock_pull": 0.56,
+     "stall": 8,
+     "feat": {
+      "m5": 1.09,
+      "h1": 4.19,
+      "liq": 602652.35,
+      "vol_h1": 17376.49,
+      "txns": 328,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1033.184017207845
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766340.230809
+    }
+   },
    "closed": [
     {
      "mint": "41thoMqVENHtGhuSp5Jhy9yPWghqrPfeETrMe97JK4tg",
@@ -4270,7 +4419,8 @@
     }
    ],
    "cooldown": {
-    "41thoMqVENHtGhuSp5Jhy9yPWghqrPfeETrMe97JK4tg": 1792765602.7115397
+    "41thoMqVENHtGhuSp5Jhy9yPWghqrPfeETrMe97JK4tg": 1792765602.7115397,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766194.8884647
    },
    "created": 1792765586.2470207,
    "val_start": 0
@@ -4546,11 +4696,33 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.800213920506502,
    "start_usd": 10.0,
    "positions": {},
-   "closed": [],
-   "cooldown": {},
+   "closed": [
+    {
+     "mint": "57SF73wzpRprHUpLTfMKfu7H8gATrF1EvefySZ49pump",
+     "pnl_pct": -7.99144317973993,
+     "pnl_usd": -0.19978607949349825,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792766251.7320995,
+     "feat": {
+      "m5": 70.55,
+      "h1": 70.55,
+      "liq": 21475.86,
+      "vol_h1": 37900.03,
+      "txns": 1212,
+      "holders": 2018,
+      "top10": 3.76,
+      "score": 30,
+      "age": 3.2302595662434896
+     }
+    }
+   ],
+   "cooldown": {
+    "57SF73wzpRprHUpLTfMKfu7H8gATrF1EvefySZ49pump": 1792766239.2999256
+   },
    "created": 1792765586.2474465,
    "val_start": 0
   },
@@ -4650,9 +4822,45 @@
    "reason": "",
    "paper_usd": 10.0,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.0497,
+     "entry_liq": 602722.59,
+     "ts": 1792766225.253353,
+     "cost_usd": 2.5,
+     "size_tokens": 50.30181086519114,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
+     "tp": 80.0,
+     "sl": 3.0,
+     "hold": 5,
+     "trail": 10.0,
+     "page_id": "40293233-c104-818a-ad98-c76b0d9916c5",
+     "lock_pull": 4.0,
+     "stall": 8,
+     "feat": {
+      "m5": 1.07,
+      "h1": 4.18,
+      "liq": 602722.59,
+      "vol_h1": 17219.41,
+      "txns": 294,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1033.6858700317382
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766304.0901496
+    }
+   },
    "closed": [],
-   "cooldown": {},
+   "cooldown": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766225.253353
+   },
    "created": 1792765586.247628,
    "val_start": 0
   },
@@ -4798,11 +5006,33 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.231945911362066,
    "start_usd": 10.0,
    "positions": {},
-   "closed": [],
-   "cooldown": {},
+   "closed": [
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7680540886379333,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766143.4145272,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.053471016438802
+     }
+    }
+   ],
+   "cooldown": {
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766079.4180593
+   },
    "created": 1792765586.2479064,
    "val_start": 0
   },
@@ -4843,7 +5073,7 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 9.266642487882008,
+   "paper_usd": 9.081507870609826,
    "start_usd": 10.0,
    "positions": {},
    "closed": [
@@ -4884,11 +5114,31 @@
       "score": 15,
       "age": 84.75745283610026
      }
+    },
+    {
+     "mint": "57SF73wzpRprHUpLTfMKfu7H8gATrF1EvefySZ49pump",
+     "pnl_pct": -7.99144317973993,
+     "pnl_usd": -0.1851346172721823,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792766252.7253745,
+     "feat": {
+      "m5": 70.55,
+      "h1": 70.55,
+      "liq": 21475.86,
+      "vol_h1": 37900.03,
+      "txns": 1212,
+      "holders": 2018,
+      "top10": 3.76,
+      "score": 30,
+      "age": 3.2302595662434896
+     }
     }
    ],
    "cooldown": {
     "41thoMqVENHtGhuSp5Jhy9yPWghqrPfeETrMe97JK4tg": 1792765601.3111024,
-    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765849.0727153
+    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765849.0727153,
+    "57SF73wzpRprHUpLTfMKfu7H8gATrF1EvefySZ49pump": 1792766238.7171817
    },
    "created": 1792765586.2479994,
    "val_start": 0
@@ -4985,7 +5235,7 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 9.831944444444444,
+   "paper_usd": 9.076797931462787,
    "start_usd": 10.0,
    "positions": {},
    "closed": [
@@ -5007,10 +5257,30 @@
       "score": 10,
       "age": 61.51401375732422
      }
+    },
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7551465129816569,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766144.351391,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.053471016438802
+     }
     }
    ],
    "cooldown": {
-    "6V8ZLegByoWKpRCmfFtpK5mvMbZ5wFTSaajhr5Ckpump": 1792765713.8151834
+    "6V8ZLegByoWKpRCmfFtpK5mvMbZ5wFTSaajhr5Ckpump": 1792765713.8151834,
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766080.0499763
    },
    "created": 1792765586.248163,
    "val_start": 0
@@ -5224,26 +5494,51 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.950989208633093,
    "start_usd": 10.0,
    "positions": {
-    "ChjYk79x48RLPRKbKJcz5bfZ17rJXSgy9toreEaupump": {
-     "name": "USDF",
-     "entry_price": 0.3892,
-     "entry_liq": 1689406.21,
-     "ts": 1792765637.7335787,
-     "cost_usd": 2.5,
-     "size_tokens": 6.423432682425489,
-     "score": 50,
-     "holders": 4423,
-     "top10": 0.66,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.04941,
+     "entry_liq": 600987.83,
+     "ts": 1792766169.3672884,
+     "cost_usd": 2.487747302158273,
+     "size_tokens": 50.34906501028685,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
      "tp": 107.4,
      "sl": 3.0,
      "hold": 5,
      "trail": 10.0,
-     "page_id": "40293233-c104-8139-9adb-f1f3eaea88aa",
+     "page_id": "40293233-c104-8107-bf5b-d3c7dd703ce4",
      "lock_pull": 4.0,
      "stall": 8,
+     "feat": {
+      "m5": 0.54,
+      "h1": 3.61,
+      "liq": 600987.83,
+      "vol_h1": 17199.32,
+      "txns": 288,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1032.7561985839843
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766315.993124
+    }
+   },
+   "closed": [
+    {
+     "mint": "ChjYk79x48RLPRKbKJcz5bfZ17rJXSgy9toreEaupump",
+     "pnl_pct": -1.9604316546762623,
+     "pnl_usd": -0.049010791366906566,
+     "win": false,
+     "why": "max hold time",
+     "ts": 1792766077.4306586,
      "feat": {
       "m5": 0.48,
       "h1": 2.01,
@@ -5254,16 +5549,12 @@
       "top10": 0.66,
       "score": 50,
       "age": 2159.32921155599
-     },
-     "peak_price": 0.3898,
-     "last_price": 0.3898,
-     "down_ticks": 0,
-     "last_patch": 1792765844.1576037
+     }
     }
-   },
-   "closed": [],
+   ],
    "cooldown": {
-    "ChjYk79x48RLPRKbKJcz5bfZ17rJXSgy9toreEaupump": 1792765637.7335787
+    "ChjYk79x48RLPRKbKJcz5bfZ17rJXSgy9toreEaupump": 1792765637.7335787,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766169.3672884
    },
    "created": 1792765586.2485209,
    "val_start": 0
@@ -5304,7 +5595,42 @@
    "reason": "",
    "paper_usd": 9.119795290339844,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "57SF73wzpRprHUpLTfMKfu7H8gATrF1EvefySZ49pump": {
+     "name": "Token57mp",
+     "entry_price": 7.39849e-05,
+     "entry_liq": 21163.52,
+     "ts": 1792766255.426338,
+     "cost_usd": 2.3711467754883597,
+     "size_tokens": 32049.0637344696,
+     "score": 30,
+     "holders": 2018,
+     "top10": 3.76,
+     "tp": 80.0,
+     "sl": 3.0,
+     "hold": 5,
+     "trail": 10.0,
+     "page_id": "40293233-c104-8108-a6bb-e0e70bc3bf3c",
+     "lock_pull": 0.5,
+     "stall": 8,
+     "feat": {
+      "m5": 66.03,
+      "h1": 66.03,
+      "liq": 21163.52,
+      "vol_h1": 37602.17,
+      "txns": 1117,
+      "holders": 2018,
+      "top10": 3.76,
+      "score": 30,
+      "age": 3.507787272135417
+     },
+     "peak_price": 8.064e-05,
+     "last_price": 8.064e-05,
+     "down_ticks": 0,
+     "last_patch": 1792766328.479463,
+     "armed": true
+    }
+   },
    "closed": [
     {
      "mint": "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump",
@@ -5327,7 +5653,8 @@
     }
    ],
    "cooldown": {
-    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765766.9416265
+    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765766.9416265,
+    "57SF73wzpRprHUpLTfMKfu7H8gATrF1EvefySZ49pump": 1792766255.426338
    },
    "created": 1792765586.2486122,
    "val_start": 0
@@ -5363,11 +5690,33 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.231945911362066,
    "start_usd": 10.0,
    "positions": {},
-   "closed": [],
-   "cooldown": {},
+   "closed": [
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7680540886379333,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766145.3372428,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.40111357421875
+     }
+    }
+   ],
+   "cooldown": {
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766102.2865462
+   },
    "created": 1792765586.2487009,
    "val_start": 0
   },
@@ -5443,7 +5792,41 @@
    "reason": "",
    "paper_usd": 9.943083247687564,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.04969,
+     "entry_liq": 602652.35,
+     "ts": 1792766196.0327752,
+     "cost_usd": 2.3863399794450153,
+     "size_tokens": 48.02455181012307,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
+     "tp": 125.55,
+     "sl": 2.43,
+     "hold": 3,
+     "trail": 9.12,
+     "page_id": "40293233-c104-819b-9bc7-c51f438fa12f",
+     "lock_pull": 9.07,
+     "stall": 4,
+     "feat": {
+      "m5": 1.09,
+      "h1": 4.19,
+      "liq": 602652.35,
+      "vol_h1": 17376.49,
+      "txns": 328,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1033.184017207845
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766340.5708575
+    }
+   },
    "closed": [
     {
      "mint": "ChjYk79x48RLPRKbKJcz5bfZ17rJXSgy9toreEaupump",
@@ -5466,7 +5849,8 @@
     }
    ],
    "cooldown": {
-    "ChjYk79x48RLPRKbKJcz5bfZ17rJXSgy9toreEaupump": 1792765637.2498217
+    "ChjYk79x48RLPRKbKJcz5bfZ17rJXSgy9toreEaupump": 1792765637.2498217,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766196.0327752
    },
    "created": 1792765586.2488296,
    "val_start": 0
@@ -6175,11 +6559,68 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.231945911362066,
    "start_usd": 10.0,
-   "positions": {},
-   "closed": [],
-   "cooldown": {},
+   "positions": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.04969,
+     "entry_liq": 602652.35,
+     "ts": 1792766182.1376207,
+     "cost_usd": 2.3079864778405166,
+     "size_tokens": 46.44770532985544,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
+     "tp": 80.0,
+     "sl": 3.0,
+     "hold": 5,
+     "trail": 10.0,
+     "page_id": "40293233-c104-815a-9cfe-c61555b10900",
+     "lock_pull": 4.0,
+     "stall": 2,
+     "feat": {
+      "m5": 1.09,
+      "h1": 4.19,
+      "liq": 602652.35,
+      "vol_h1": 17376.49,
+      "txns": 328,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1032.9791732299805
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766316.2973082
+    }
+   },
+   "closed": [
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7680540886379333,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766146.5022318,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.40111357421875
+     }
+    }
+   ],
+   "cooldown": {
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766100.2676792,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766182.1376207
+   },
    "created": 1792765586.2501254,
    "val_start": 0
   },
@@ -6215,11 +6656,33 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.231945911362066,
    "start_usd": 10.0,
    "positions": {},
-   "closed": [],
-   "cooldown": {},
+   "closed": [
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7680540886379333,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766147.3266501,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.40111357421875
+     }
+    }
+   ],
+   "cooldown": {
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766101.6139522
+   },
    "created": 1792765586.2502272,
    "val_start": 0
   },
@@ -6260,9 +6723,45 @@
    "reason": "",
    "paper_usd": 10.0,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.0497,
+     "entry_liq": 602722.59,
+     "ts": 1792766210.9556413,
+     "cost_usd": 2.5,
+     "size_tokens": 50.30181086519114,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
+     "tp": 147.17,
+     "sl": 3.0,
+     "hold": 5,
+     "trail": 10.0,
+     "page_id": "40293233-c104-8157-8585-f850cc502116",
+     "lock_pull": 4.0,
+     "stall": 8,
+     "feat": {
+      "m5": 1.07,
+      "h1": 4.18,
+      "liq": 602722.59,
+      "vol_h1": 17219.41,
+      "txns": 294,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1033.4357962117513
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766353.1634161
+    }
+   },
    "closed": [],
-   "cooldown": {},
+   "cooldown": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766210.9556413
+   },
    "created": 1792765586.2503257,
    "val_start": 0
   },
@@ -6303,7 +6802,41 @@
    "reason": "",
    "paper_usd": 9.234159555749333,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.0497,
+     "entry_liq": 602722.59,
+     "ts": 1792766210.2475598,
+     "cost_usd": 2.308539888937333,
+     "size_tokens": 46.44949474723004,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
+     "tp": 80.0,
+     "sl": 3.0,
+     "hold": 5,
+     "trail": 8.67,
+     "page_id": "40293233-c104-8104-810f-fd61ac695ecf",
+     "lock_pull": 4.0,
+     "stall": 8,
+     "feat": {
+      "m5": 1.07,
+      "h1": 4.18,
+      "liq": 602722.59,
+      "vol_h1": 17219.41,
+      "txns": 294,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1033.4357962117513
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766353.4901333
+    }
+   },
    "closed": [
     {
      "mint": "23K5Kvr46NQxZopN7QEVocUZpT2YZZHJG7nixNr5pump",
@@ -6326,7 +6859,8 @@
     }
    ],
    "cooldown": {
-    "23K5Kvr46NQxZopN7QEVocUZpT2YZZHJG7nixNr5pump": 1792765652.158864
+    "23K5Kvr46NQxZopN7QEVocUZpT2YZZHJG7nixNr5pump": 1792765652.158864,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766210.2475598
    },
    "created": 1792765586.2504196,
    "val_start": 0
@@ -6404,7 +6938,41 @@
    "reason": "",
    "paper_usd": 9.266642487882008,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.04966,
+     "entry_liq": 602470.44,
+     "ts": 1792766130.396475,
+     "cost_usd": 2.316660621970502,
+     "size_tokens": 46.650435400130924,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
+     "tp": 80.0,
+     "sl": 3.0,
+     "hold": 5,
+     "trail": 10.23,
+     "page_id": "40293233-c104-8115-bdd5-ec34c5526db9",
+     "lock_pull": 4.0,
+     "stall": 8,
+     "feat": {
+      "m5": 1.03,
+      "h1": 4.12,
+      "liq": 602470.44,
+      "vol_h1": 17114.55,
+      "txns": 270,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1032.11811369222
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766340.8824375
+    }
+   },
    "closed": [
     {
      "mint": "41thoMqVENHtGhuSp5Jhy9yPWghqrPfeETrMe97JK4tg",
@@ -6447,7 +7015,8 @@
    ],
    "cooldown": {
     "41thoMqVENHtGhuSp5Jhy9yPWghqrPfeETrMe97JK4tg": 1792765598.8857574,
-    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765845.2976146
+    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765845.2976146,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766130.396475
    },
    "created": 1792765586.2505603,
    "val_start": 0
@@ -6525,7 +7094,7 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 9.692949591280655,
+   "paper_usd": 8.948478634826206,
    "start_usd": 10.0,
    "positions": {},
    "closed": [
@@ -6547,10 +7116,30 @@
       "score": 15,
       "age": 84.75745283610026
      }
+    },
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7444709564544492,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766148.6952212,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.40111357421875
+     }
     }
    ],
    "cooldown": {
-    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765846.3806405
+    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765846.3806405,
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766100.877854
    },
    "created": 1792765586.2507522,
    "val_start": 0
@@ -6671,11 +7260,33 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.231945911362066,
    "start_usd": 10.0,
    "positions": {},
-   "closed": [],
-   "cooldown": {},
+   "closed": [
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7680540886379333,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766149.808776,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.053471016438802
+     }
+    }
+   ],
+   "cooldown": {
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766082.2531528
+   },
    "created": 1792765586.2510464,
    "val_start": 0
   },
@@ -6758,7 +7369,41 @@
    "reason": "",
    "paper_usd": 9.153649317634466,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.0497,
+     "entry_liq": 602722.59,
+     "ts": 1792766224.6061535,
+     "cost_usd": 2.2884123294086165,
+     "size_tokens": 46.04451367019349,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
+     "tp": 139.07,
+     "sl": 3.0,
+     "hold": 5,
+     "trail": 10.0,
+     "page_id": "40293233-c104-81dc-94b8-e1b5e1e9401f",
+     "lock_pull": 0.53,
+     "stall": 8,
+     "feat": {
+      "m5": 1.07,
+      "h1": 4.18,
+      "liq": 602722.59,
+      "vol_h1": 17219.41,
+      "txns": 294,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1033.6858700317382
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766304.388195
+    }
+   },
    "closed": [
     {
      "mint": "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump",
@@ -6781,7 +7426,8 @@
     }
    ],
    "cooldown": {
-    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765753.5226684
+    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765753.5226684,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766224.6061535
    },
    "created": 1792765586.2512686,
    "val_start": 0
@@ -6818,11 +7464,68 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.231945911362066,
    "start_usd": 10.0,
-   "positions": {},
-   "closed": [],
-   "cooldown": {},
+   "positions": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.0497,
+     "entry_liq": 602722.59,
+     "ts": 1792766209.6194448,
+     "cost_usd": 2.3079864778405166,
+     "size_tokens": 46.43835971510094,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
+     "tp": 145.15,
+     "sl": 3.0,
+     "hold": 5,
+     "trail": 10.0,
+     "page_id": "40293233-c104-81b7-8396-fcdc2335531b",
+     "lock_pull": 0.5,
+     "stall": 8,
+     "feat": {
+      "m5": 1.07,
+      "h1": 4.18,
+      "liq": 602722.59,
+      "vol_h1": 17219.41,
+      "txns": 294,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1033.4357962117513
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766353.7465413
+    }
+   },
+   "closed": [
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7680540886379333,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766150.70105,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.053471016438802
+     }
+    }
+   ],
+   "cooldown": {
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766083.4270072,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766209.6194448
+   },
    "created": 1792765586.2513666,
    "val_start": 0
   },
@@ -7009,11 +7712,33 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.231945911362066,
    "start_usd": 10.0,
    "positions": {},
-   "closed": [],
-   "cooldown": {},
+   "closed": [
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7680540886379333,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766151.5806317,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.40111357421875
+     }
+    }
+   ],
+   "cooldown": {
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766103.4597406
+   },
    "created": 1792765586.2516856,
    "val_start": 0
   },
@@ -7048,7 +7773,7 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 9.266642487882008,
+   "paper_usd": 8.554914222805632,
    "start_usd": 10.0,
    "positions": {},
    "closed": [
@@ -7089,11 +7814,31 @@
       "score": 15,
       "age": 84.75745283610026
      }
+    },
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7117282650763767,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766152.6674845,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.053471016438802
+     }
     }
    ],
    "cooldown": {
     "41thoMqVENHtGhuSp5Jhy9yPWghqrPfeETrMe97JK4tg": 1792765602.2066386,
-    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765848.5525327
+    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765848.5525327,
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766081.1002426
    },
    "created": 1792765586.2517812,
    "val_start": 0
@@ -7171,9 +7916,45 @@
    "reason": "",
    "paper_usd": 10.0,
    "start_usd": 10.0,
-   "positions": {},
+   "positions": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+     "name": "DOAS",
+     "entry_price": 0.04969,
+     "entry_liq": 602652.35,
+     "ts": 1792766194.33326,
+     "cost_usd": 2.7,
+     "size_tokens": 54.33688871000202,
+     "score": 30,
+     "holders": 4073,
+     "top10": 0.94,
+     "tp": 80.0,
+     "sl": 3.0,
+     "hold": 5,
+     "trail": 10.0,
+     "page_id": "40293233-c104-8159-9ebf-d67676e1c8ad",
+     "lock_pull": 4.0,
+     "stall": 8,
+     "feat": {
+      "m5": 1.09,
+      "h1": 4.19,
+      "liq": 602652.35,
+      "vol_h1": 17376.49,
+      "txns": 328,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1033.184017207845
+     },
+     "peak_price": 0.04997,
+     "last_price": 0.04997,
+     "down_ticks": 0,
+     "last_patch": 1792766341.175744
+    }
+   },
    "closed": [],
-   "cooldown": {},
+   "cooldown": {
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766194.33326
+   },
    "created": 1792765586.2519202,
    "val_start": 0
   },
@@ -7286,7 +8067,7 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 9.692949591280655,
+   "paper_usd": 8.948478634826206,
    "start_usd": 10.0,
    "positions": {},
    "closed": [
@@ -7308,10 +8089,30 @@
       "score": 15,
       "age": 84.75745283610026
      }
+    },
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7444709564544492,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766153.5658216,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.40111357421875
+     }
     }
    ],
    "cooldown": {
-    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765847.3904862
+    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765847.3904862,
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766102.890386
    },
    "created": 1792765586.2521791,
    "val_start": 0
@@ -7450,11 +8251,33 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.231945911362066,
    "start_usd": 10.0,
    "positions": {},
-   "closed": [],
-   "cooldown": {},
+   "closed": [
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7680540886379333,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766154.405567,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.053471016438802
+     }
+    }
+   ],
+   "cooldown": {
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766081.6895885
+   },
    "created": 1792765586.2524853,
    "val_start": 0
   },
@@ -7491,11 +8314,33 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 9.231945911362066,
    "start_usd": 10.0,
    "positions": {},
-   "closed": [],
-   "cooldown": {},
+   "closed": [
+    {
+     "mint": "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump",
+     "pnl_pct": -30.722163545517333,
+     "pnl_usd": -0.7680540886379333,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792766155.1937385,
+     "feat": {
+      "m5": 10.39,
+      "h1": 10.39,
+      "liq": 13993.12,
+      "vol_h1": 3646.49,
+      "txns": 92,
+      "holders": 198,
+      "top10": 24.42,
+      "score": 10,
+      "age": 4.053471016438802
+     }
+    }
+   ],
+   "cooldown": {
+    "CmgcFZdh2opKAXXQUi4taxHBzCprcnq8W1LCnUPypump": 1792766082.9119234
+   },
    "created": 1792765586.252582,
    "val_start": 0
   },
@@ -7570,7 +8415,7 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 9.74207765667575,
+   "paper_usd": 9.714118721907267,
    "start_usd": 10.0,
    "positions": {},
    "closed": [
@@ -7592,10 +8437,30 @@
       "score": 15,
       "age": 84.75745283610026
      }
+    },
+    {
+     "mint": "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump",
+     "pnl_pct": -1.3666261890305709,
+     "pnl_usd": -0.027958934768483577,
+     "win": false,
+     "why": "max hold time",
+     "ts": 1792766354.1799893,
+     "feat": {
+      "m5": 0.54,
+      "h1": 3.61,
+      "liq": 600987.83,
+      "vol_h1": 17199.32,
+      "txns": 288,
+      "holders": 4073,
+      "top10": 0.94,
+      "score": 30,
+      "age": 1032.7561985839843
+     }
     }
    ],
    "cooldown": {
-    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765845.7952018
+    "FWz2EY9qhMpLeKYUgunVbfj6pNSbX3Nq3KnGE9whpump": 1792765845.7952018,
+    "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": 1792766168.6935616
    },
    "created": 1792765586.252733,
    "val_start": 0
@@ -8971,13 +9836,103 @@
     "fee_pct": 0.0,
     "risks": []
    }
+  },
+  "54kFb9fBfw4myTsJTKisUB2EYudzNgHQ3PaVGbVvQ3ca": {
+   "ts": 1792766078.208261,
+   "a": {
+    "score": 15,
+    "liq": 20766.29,
+    "holders": 261,
+    "top10": 6.48,
+    "symbol": "CINDY",
+    "danger": true,
+    "mint_auth": false,
+    "freeze_auth": false,
+    "rugged": false,
+    "top1": 2.29,
+    "insider_pct": 0,
+    "creator_pct": 0,
+    "lp_locked": 1.0955632587772948e-09,
+    "fee_pct": 0.0,
+    "risks": [
+     "large amount of lp unlocked",
+     "low amount of lp providers"
+    ]
+   }
+  },
+  "4XHqMnMW8zAca9rrmBdQuGfXvML4W2bhQD84hsBB4juA": {
+   "ts": 1792766117.7302313,
+   "a": {
+    "score": 15,
+    "liq": 22104.4,
+    "holders": 180,
+    "top10": 8.48,
+    "symbol": "Lala",
+    "danger": true,
+    "mint_auth": false,
+    "freeze_auth": false,
+    "rugged": false,
+    "top1": 1.92,
+    "insider_pct": 0,
+    "creator_pct": 0,
+    "lp_locked": 0.0,
+    "fee_pct": 0.0,
+    "risks": [
+     "large amount of lp unlocked",
+     "low amount of lp providers"
+    ]
+   }
+  },
+  "2qPoPQQCHGtDbgdSxXfrzW1iRS3cGbKmMWSMapZ4pump": {
+   "ts": 1792766117.7302313,
+   "a": {
+    "score": 30,
+    "liq": 602407.91,
+    "holders": 4073,
+    "top10": 0.94,
+    "symbol": "DOAS",
+    "danger": false,
+    "mint_auth": false,
+    "freeze_auth": false,
+    "rugged": false,
+    "top1": 0.09,
+    "insider_pct": 0,
+    "creator_pct": 0,
+    "lp_locked": 100.0,
+    "fee_pct": 0.0,
+    "risks": [
+     "high holder correlation"
+    ]
+   }
+  },
+  "57SF73wzpRprHUpLTfMKfu7H8gATrF1EvefySZ49pump": {
+   "ts": 1792766237.815574,
+   "a": {
+    "score": 30,
+    "liq": 21163.52,
+    "holders": 2018,
+    "top10": 3.76,
+    "symbol": "SpaceX AI",
+    "danger": false,
+    "mint_auth": false,
+    "freeze_auth": false,
+    "rugged": false,
+    "top1": 3.03,
+    "insider_pct": 0,
+    "creator_pct": 0,
+    "lp_locked": 100.0,
+    "fee_pct": 0.0,
+    "risks": [
+     "high holder correlation"
+    ]
+   }
   }
  },
  "halted": false,
- "tg_offset": 872775046,
+ "tg_offset": 872775049,
  "await": null,
  "rejects": {
-  "RugCheck danger-level risk": 6,
-  "price already dumped (-#% in #h)": 3
+  "RugCheck danger-level risk": 16,
+  "price already dumped (-#% in #h)": 4
  }
 }
