@@ -1852,40 +1852,9 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.611313781692925,
+   "paper_usd": 9.701932361007062,
    "start_usd": 10.0,
-   "positions": {
-    "6CaTKnA3eJEisxYrS4dKGmqBPJ8apePbc65xteJhpump": {
-     "name": "POOT",
-     "entry_price": 0.0001039,
-     "entry_liq": 27649.41,
-     "ts": 1792733352.8735938,
-     "cost_usd": 1.9100364807047263,
-     "size_tokens": 18383.41174884241,
-     "score": 25,
-     "holders": 3701,
-     "top10": 18.43,
-     "tp": 201.22,
-     "sl": 7.19,
-     "hold": 12,
-     "trail": 3.09,
-     "page_id": "40293233-c104-811a-b041-d71aabefb96e",
-     "feat": {
-      "m5": 4.12,
-      "h1": 27.59,
-      "liq": 27649.41,
-      "vol_h1": 130928.69,
-      "txns": 272,
-      "holders": 3701,
-      "top10": 18.43,
-      "score": 25,
-      "age": 196.59744471435548
-     },
-     "peak_price": 0.0001047,
-     "last_price": 9.849e-05,
-     "last_patch": 1792733626.1962223
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "HKh5uh37FyRhRbDPcmPCoTcfByRLdY65RFZj9AvZpump",
@@ -1923,6 +1892,25 @@
       "top10": 1.65,
       "score": 15,
       "age": 98.91527093098958
+     }
+    },
+    {
+     "mint": "6CaTKnA3eJEisxYrS4dKGmqBPJ8apePbc65xteJhpump",
+     "pnl_pct": -47.610683349374405,
+     "pnl_usd": -0.909381420685862,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792742571.0779681,
+     "feat": {
+      "m5": 4.12,
+      "h1": 27.59,
+      "liq": 27649.41,
+      "vol_h1": 130928.69,
+      "txns": 272,
+      "holders": 3701,
+      "top10": 18.43,
+      "score": 25,
+      "age": 196.59744471435548
      }
     }
    ],
@@ -2231,17 +2219,6 @@
     "holders": 1124,
     "top10": 78.02,
     "symbol": "BLACKTOBER",
-    "danger": true
-   }
-  },
-  "CSocnzcRpgSCr1naKcNTieWZUxb6rABe45j844m7pump": {
-   "ts": 1792694091.6567676,
-   "a": {
-    "score": 20,
-    "liq": 404519.41,
-    "holders": 58407,
-    "top10": 78.44,
-    "symbol": "Kimchi",
     "danger": true
    }
   },
@@ -2838,9 +2815,75 @@
     "symbol": "POOT",
     "danger": false
    }
+  },
+  "2hPYWv4SydoBYmiecpqVi1AdTDSM4xeHbKeBDBQMpump": {
+   "ts": 1792742572.1021113,
+   "a": {
+    "score": 25,
+    "liq": 30873.69,
+    "holders": 2665,
+    "top10": 13.57,
+    "symbol": "zonki",
+    "danger": false
+   }
+  },
+  "CSocnzcRpgSCr1naKcNTieWZUxb6rABe45j844m7pump": {
+   "ts": 1792742660.7986884,
+   "a": {
+    "score": 20,
+    "liq": 334830.19,
+    "holders": 61258,
+    "top10": 78.98,
+    "symbol": "Kimchi",
+    "danger": true
+   }
+  },
+  "5h86r9mEnhhpy8kXU6vYUQLvkzLmmCSstTxdVLYDURFG": {
+   "ts": 1792742683.0058172,
+   "a": {
+    "score": 0,
+    "liq": 82747.09,
+    "holders": 2058,
+    "top10": 68.97,
+    "symbol": "FLYXO",
+    "danger": true
+   }
+  },
+  "HbVPTLRijQg9PWyu66ZLwug5ERuyXw4p3c3Rfx9hpump": {
+   "ts": 1792742705.1290717,
+   "a": {
+    "score": 15,
+    "liq": 91719.21,
+    "holders": 3041,
+    "top10": 13.8,
+    "symbol": "ogkimchi",
+    "danger": false
+   }
+  },
+  "z1gC6KiMdhnp5RjRtH63JjXhrWKpqK1qaDVBLfCpump": {
+   "ts": 1792742769.7799656,
+   "a": {
+    "score": 35,
+    "liq": 27532.46,
+    "holders": 2373,
+    "top10": 20.15,
+    "symbol": "GUST",
+    "danger": false
+   }
+  },
+  "yYHG2eo9cVseT3E5dAbKN9Dfw5mNjJ4kC7GpS5npump": {
+   "ts": 1792742834.766335,
+   "a": {
+    "score": 0,
+    "liq": 289869.42,
+    "holders": 948,
+    "top10": 98.74,
+    "symbol": "TOS",
+    "danger": true
+   }
   }
  },
  "halted": false,
- "tg_offset": 872775022,
+ "tg_offset": 872775025,
  "await": null
 }
