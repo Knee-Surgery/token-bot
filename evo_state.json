@@ -4785,9 +4785,108 @@
     "symbol": "DAZE",
     "danger": false
    }
+  },
+  "F9D62GrQaHS5R7CpuJqzRtipBiUeXJMzWr3MS25npump": {
+   "ts": 1792751691.3170264,
+   "a": {
+    "score": 0,
+    "liq": 48917.66,
+    "holders": 723,
+    "top10": 53.93,
+    "symbol": "Grok",
+    "danger": true
+   }
+  },
+  "EAfDoAypGduzxxiFgZxbHGRpaW3CHfm3EkvWSEdndeKM": {
+   "ts": 1792751691.3170264,
+   "a": {
+    "score": 15,
+    "liq": 40165.4,
+    "holders": 59,
+    "top10": 6.72,
+    "symbol": "BNC",
+    "danger": true
+   }
+  },
+  "5gTBKK59hPDXoPsC6Wv4NwCv5ujXiMZFm9z2q1nF3nTP": {
+   "ts": 1792751826.2475402,
+   "a": {
+    "score": 15,
+    "liq": 21610.49,
+    "holders": 137,
+    "top10": 10.33,
+    "symbol": "XMR",
+    "danger": true
+   }
+  },
+  "FHMsg9KBBAQZhbukybN8axS4p3ctPrPXw6PrKbA4pump": {
+   "ts": 1792751826.2475402,
+   "a": {
+    "score": 25,
+    "liq": 42553.38,
+    "holders": 1643,
+    "top10": 4.91,
+    "symbol": "cyber",
+    "danger": false
+   }
+  },
+  "8HzBkSsYs5C74z9fRPviwaS1k6wqkif9EGds2r1aiZRZ": {
+   "ts": 1792751947.9793832,
+   "a": {
+    "score": 5,
+    "liq": 40989.49,
+    "holders": 163,
+    "top10": 14.58,
+    "symbol": "CLAW",
+    "danger": true
+   }
+  },
+  "2Y5TfE8Kd3gD8eUrDz6t9gB6akajcJhmfDVujk3M8PCo": {
+   "ts": 1792751947.9793832,
+   "a": {
+    "score": 10,
+    "liq": 44742.05,
+    "holders": 272,
+    "top10": 11.04,
+    "symbol": "Mete Dog",
+    "danger": true
+   }
+  },
+  "EpcgQT92C4s9QM3XeTzZFTX3oEP9gyPAGLcdRMhYjGMh": {
+   "ts": 1792751971.1677854,
+   "a": {
+    "score": 0,
+    "liq": 41581.71,
+    "holders": 46,
+    "top10": 7.28,
+    "symbol": "NEX Ai",
+    "danger": true
+   }
+  },
+  "7cGxBwrnp28JvEwDNauxEzBS3t8Y6HKPHq9cfNQn2gc3": {
+   "ts": 1792751971.1677854,
+   "a": {
+    "score": 0,
+    "liq": 18979.35,
+    "holders": 79,
+    "top10": 5.25,
+    "symbol": "TROLLCHI",
+    "danger": true
+   }
+  },
+  "6K8Vm3VjMyNKoQNZhh7YTvBbgiqGGWLTpsnZ46eGRUsb": {
+   "ts": 1792751971.1677854,
+   "a": {
+    "score": 10,
+    "liq": 16798.58,
+    "holders": 768,
+    "top10": 18.73,
+    "symbol": "XMW",
+    "danger": false
+   }
   }
  },
  "halted": false,
- "tg_offset": 872775035,
+ "tg_offset": 872775040,
  "await": null
 }
