@@ -572,7 +572,8 @@ async def monitor(g, S, pc, events, notes_out):
                 v["closed"].append({"mint": mint, "pnl_pct": net, "pnl_usd": pnl_usd, "win": net > 0,
                                     "why": why, "ts": now, "feat": pos.get("feat")})
                 del v["positions"][mint]
-                cum = sum(t["pnl_usd"] for t in v["closed"])
+                # overall running total across every bot (what the journal's P&L chart plots)
+                S["total_pnl"] = cum = (S.get("total_pnl") or 0.0) + pnl_usd
                 result = "Win" if net > 0 else "Loss" if net < 0 else "Breakeven"
                 await asyncio.gather(auto.n_patch(g, pos.get("page_id"), {"archived": True}), auto.n_create(g, auto.DB_CLOSED, {
                     "Token": auto._title(pos["name"]), "Mint": auto._text(mint),
@@ -790,6 +791,41 @@ async def sweep_orphans(g, S) -> int:
     return n
 
 
+async def pnl_history(g, S) -> list:
+    """Read every Exit row of Trade Events in time order, set S["total_pnl"] to the overall realised PnL, and return
+    the rows whose 'Cumulative PnL (USD)' is not yet the overall running total (older rows held each bot's own
+    total, which made the journal chart meaningless). Fixing them is left to fix_cumulative() in the background."""
+    rows, cursor = [], None
+    body = {"page_size": 100, "filter": {"property": "Type", "select": {"equals": "Exit"}},
+            "sorts": [{"property": "Time", "direction": "ascending"},
+                      {"timestamp": "created_time", "direction": "ascending"}]}
+    while True:
+        r = await g["http"].post(f"https://api.notion.com/v1/databases/{auto.DB_EVENTS}/query", headers=auto._h(),
+                                 json={**body, **({"start_cursor": cursor} if cursor else {})})
+        r.raise_for_status()
+        j = r.json()
+        rows += j.get("results", [])
+        cursor = j.get("next_cursor")
+        if not j.get("has_more"):
+            break
+    total, todo = 0.0, []
+    for row in rows:
+        p = row["properties"]
+        total += (p.get("Realised PnL (USD)") or {}).get("number") or 0
+        if abs(((p.get("Cumulative PnL (USD)") or {}).get("number") or 0) - total) > 0.005:
+            todo.append((row["id"], total))
+    S["total_pnl"] = total
+    return todo
+
+
+async def fix_cumulative(g, S, todo):
+    for pid, total in todo:
+        await auto.n_patch(g, pid, {"properties": {"Cumulative PnL (USD)": auto._num(total)}})
+        await asyncio.sleep(0.35)  # Notion rate limit, shared with the trading loop
+    S["cum_fixed"] = True
+    log.info("journal: corrected the running total on %d past exits", len(todo))
+
+
 async def run(tb, g, loop_seconds: int):
     import menu  # lazy import: menu.py imports this module
     S = load()
@@ -801,8 +837,15 @@ async def run(tb, g, loop_seconds: int):
     # Telegram runs in its own task with long polling, so taps and messages are answered within about a second
     # instead of waiting for the next 10 s tick and for slow scans / Notion writes to finish.
     tg = asyncio.create_task(menu.poll(tb, g, S, pc))
-    family = None
+    family = cumfix = None
     try:
+        if auto.NOTION_TOKEN and not S.get("cum_fixed"):
+            try:  # one-off: start the overall running total from the journal and correct past rows
+                cumfix = asyncio.create_task(fix_cumulative(g, S, await pnl_history(g, S)))
+            except Exception as e:
+                log.warning("journal running total: %s", e)
+        if S.get("total_pnl") is None:
+            S["total_pnl"] = sum(t["pnl_usd"] for v in S["variants"].values() for t in v["closed"])
         try:  # before any new entries, so rows being created can't be mistaken for orphans
             n = await sweep_orphans(g, S)
             if n:
@@ -836,8 +879,8 @@ async def run(tb, g, loop_seconds: int):
                 break
             await asyncio.sleep(10)
     finally:
-        for t in (tg, family):
+        for t in (tg, family, cumfix):  # an unfinished correction simply continues next run
             if t:
                 t.cancel()
-        await asyncio.gather(*(t for t in (tg, family) if t), return_exceptions=True)
+        await asyncio.gather(*(t for t in (tg, family, cumfix) if t), return_exceptions=True)
         save(S)

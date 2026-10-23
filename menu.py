@@ -38,7 +38,9 @@ def menu_text(S) -> str:
     ret = sum(1 for v in vs if v["status"] == "retired")
     open_n = sum(len(v["positions"]) for v in vs)
     closed = sum(len(v["closed"]) for v in vs)
+    pnl = S.get("total_pnl")
     return (f"TOKEN BOT\n\nMode: PAPER ({'PAUSED' if S['halted'] else 'running'})\n"
+            + (f"Overall P&L: {'-' if pnl < 0 else '+'}${abs(pnl):,.2f} (target $0+)\n" if pnl is not None else "") +
             f"Variants active: {act} · Validated: {val} · Retired: {ret}\n"
             f"Open trades: {open_n} · Closed trades: {closed}\n\nPick an option below.")
 
