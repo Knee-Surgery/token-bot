@@ -2184,40 +2184,9 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 7.357342844176817,
+   "paper_usd": 7.258463250776508,
    "start_usd": 10.0,
-   "positions": {
-    "AmZuyFhJ8pGFKgCqChxBa2xN4KtxnNPGLT9jXWpMWBUy": {
-     "name": "WOMB",
-     "entry_price": 1.593e-05,
-     "entry_liq": 9022.9,
-     "ts": 1792743223.0437777,
-     "cost_usd": 2.133629424811277,
-     "size_tokens": 133937.81700008013,
-     "score": 10,
-     "holders": 618,
-     "top10": 24.63,
-     "tp": 80.0,
-     "sl": 3.0,
-     "hold": 15,
-     "trail": 8.61,
-     "page_id": "40293233-c104-81b3-96aa-fc683f57eff9",
-     "feat": {
-      "m5": 14.38,
-      "h1": 2.38,
-      "liq": 9022.9,
-      "vol_h1": 18308.64,
-      "txns": 51,
-      "holders": 618,
-      "top10": 24.63,
-      "score": 10,
-      "age": 124.13379059244792
-     },
-     "peak_price": 1.613e-05,
-     "last_price": 1.613e-05,
-     "last_patch": 1792743234.1101415
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "4TL8viYE5iwu2oLbiE1JZmj98EnVBdsWENQcakAYpump",
@@ -2275,6 +2244,25 @@
       "score": 15,
       "age": 75.88958308105468
      }
+    },
+    {
+     "mint": "AmZuyFhJ8pGFKgCqChxBa2xN4KtxnNPGLT9jXWpMWBUy",
+     "pnl_pct": -4.634337727558067,
+     "pnl_usd": -0.09887959340030918,
+     "win": false,
+     "why": "trailing-stop",
+     "ts": 1792743995.655682,
+     "feat": {
+      "m5": 14.38,
+      "h1": 2.38,
+      "liq": 9022.9,
+      "vol_h1": 18308.64,
+      "txns": 51,
+      "holders": 618,
+      "top10": 24.63,
+      "score": 10,
+      "age": 124.13379059244792
+     }
     }
    ],
    "cooldown": {
@@ -2316,40 +2304,9 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 7.710502456149232,
+   "paper_usd": 7.621169775071828,
    "start_usd": 10.0,
-   "positions": {
-    "AmZuyFhJ8pGFKgCqChxBa2xN4KtxnNPGLT9jXWpMWBUy": {
-     "name": "WOMB",
-     "entry_price": 1.593e-05,
-     "entry_liq": 9022.9,
-     "ts": 1792743221.0806727,
-     "cost_usd": 1.927625614037308,
-     "size_tokens": 121006.00213667972,
-     "score": 10,
-     "holders": 618,
-     "top10": 24.63,
-     "tp": 80.0,
-     "sl": 3.0,
-     "hold": 15,
-     "trail": 10.0,
-     "page_id": "40293233-c104-8160-8948-fe1c7b5ad793",
-     "feat": {
-      "m5": 14.38,
-      "h1": 2.38,
-      "liq": 9022.9,
-      "vol_h1": 18308.64,
-      "txns": 51,
-      "holders": 618,
-      "top10": 24.63,
-      "score": 10,
-      "age": 124.13379059244792
-     },
-     "peak_price": 1.613e-05,
-     "last_price": 1.613e-05,
-     "last_patch": 1792743234.3825552
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "4TL8viYE5iwu2oLbiE1JZmj98EnVBdsWENQcakAYpump",
@@ -2407,6 +2364,25 @@
       "score": 15,
       "age": 75.88958308105468
      }
+    },
+    {
+     "mint": "AmZuyFhJ8pGFKgCqChxBa2xN4KtxnNPGLT9jXWpMWBUy",
+     "pnl_pct": -4.634337727558067,
+     "pnl_usd": -0.0893326810774038,
+     "win": false,
+     "why": "trailing-stop",
+     "ts": 1792743996.4230297,
+     "feat": {
+      "m5": 14.38,
+      "h1": 2.38,
+      "liq": 9022.9,
+      "vol_h1": 18308.64,
+      "txns": 51,
+      "holders": 618,
+      "top10": 24.63,
+      "score": 10,
+      "age": 124.13379059244792
+     }
     }
    ],
    "cooldown": {
@@ -2444,24 +2420,17 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 7.5455726859738785,
    "start_usd": 10.0,
-   "positions": {
-    "HbVPTLRijQg9PWyu66ZLwug5ERuyXw4p3c3Rfx9hpump": {
-     "name": "OGKIMCHI",
-     "entry_price": 0.0007044,
-     "entry_liq": 106718.64,
-     "ts": 1792743236.3001995,
-     "cost_usd": 2.2,
-     "size_tokens": 3123.225440090858,
-     "score": 15,
-     "holders": 3041,
-     "top10": 13.8,
-     "tp": 167.26,
-     "sl": 1.52,
-     "hold": 7,
-     "trail": 24.92,
-     "page_id": "40293233-c104-8139-9ffe-e39a439d4933",
+   "positions": {},
+   "closed": [
+    {
+     "mint": "HbVPTLRijQg9PWyu66ZLwug5ERuyXw4p3c3Rfx9hpump",
+     "pnl_pct": -111.56487791027826,
+     "pnl_usd": -2.4544273140261215,
+     "win": false,
+     "why": "liquidity collapse",
+     "ts": 1792743795.0397327,
      "feat": {
       "m5": 21.53,
       "h1": 330,
@@ -2472,12 +2441,9 @@
       "top10": 13.8,
       "score": 15,
       "age": 76.61209519856772
-     },
-     "peak_price": 0.0007044,
-     "last_price": 0.0007044
+     }
     }
-   },
-   "closed": [],
+   ],
    "cooldown": {
     "HbVPTLRijQg9PWyu66ZLwug5ERuyXw4p3c3Rfx9hpump": 1792743236.3001995
    },
@@ -2514,40 +2480,9 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 7.710502456149232,
+   "paper_usd": 7.621169775071828,
    "start_usd": 10.0,
-   "positions": {
-    "AmZuyFhJ8pGFKgCqChxBa2xN4KtxnNPGLT9jXWpMWBUy": {
-     "name": "WOMB",
-     "entry_price": 1.593e-05,
-     "entry_liq": 9022.9,
-     "ts": 1792743222.585429,
-     "cost_usd": 1.927625614037308,
-     "size_tokens": 121006.00213667972,
-     "score": 10,
-     "holders": 618,
-     "top10": 24.63,
-     "tp": 80.0,
-     "sl": 3.0,
-     "hold": 15,
-     "trail": 10.0,
-     "page_id": "40293233-c104-81cb-8fbd-cfc970ff234e",
-     "feat": {
-      "m5": 14.38,
-      "h1": 2.38,
-      "liq": 9022.9,
-      "vol_h1": 18308.64,
-      "txns": 51,
-      "holders": 618,
-      "top10": 24.63,
-      "score": 10,
-      "age": 124.13379059244792
-     },
-     "peak_price": 1.613e-05,
-     "last_price": 1.613e-05,
-     "last_patch": 1792743234.687456
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "4TL8viYE5iwu2oLbiE1JZmj98EnVBdsWENQcakAYpump",
@@ -2604,6 +2539,25 @@
       "top10": 13.8,
       "score": 15,
       "age": 75.88958308105468
+     }
+    },
+    {
+     "mint": "AmZuyFhJ8pGFKgCqChxBa2xN4KtxnNPGLT9jXWpMWBUy",
+     "pnl_pct": -4.634337727558067,
+     "pnl_usd": -0.0893326810774038,
+     "win": false,
+     "why": "trailing-stop",
+     "ts": 1792743997.1029181,
+     "feat": {
+      "m5": 14.38,
+      "h1": 2.38,
+      "liq": 9022.9,
+      "vol_h1": 18308.64,
+      "txns": 51,
+      "holders": 618,
+      "top10": 24.63,
+      "score": 10,
+      "age": 124.13379059244792
      }
     }
    ],
@@ -2752,40 +2706,9 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 7.710502456149232,
+   "paper_usd": 7.621169775071828,
    "start_usd": 10.0,
-   "positions": {
-    "AmZuyFhJ8pGFKgCqChxBa2xN4KtxnNPGLT9jXWpMWBUy": {
-     "name": "WOMB",
-     "entry_price": 1.593e-05,
-     "entry_liq": 9022.9,
-     "ts": 1792743220.6477718,
-     "cost_usd": 1.927625614037308,
-     "size_tokens": 121006.00213667972,
-     "score": 10,
-     "holders": 618,
-     "top10": 24.63,
-     "tp": 94.35,
-     "sl": 3.0,
-     "hold": 15,
-     "trail": 10.0,
-     "page_id": "40293233-c104-8146-8bc1-fa5e57287e50",
-     "feat": {
-      "m5": 14.38,
-      "h1": 2.38,
-      "liq": 9022.9,
-      "vol_h1": 18308.64,
-      "txns": 51,
-      "holders": 618,
-      "top10": 24.63,
-      "score": 10,
-      "age": 124.13379059244792
-     },
-     "peak_price": 1.613e-05,
-     "last_price": 1.613e-05,
-     "last_patch": 1792743234.9874518
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "4TL8viYE5iwu2oLbiE1JZmj98EnVBdsWENQcakAYpump",
@@ -2843,6 +2766,25 @@
       "score": 15,
       "age": 75.88958308105468
      }
+    },
+    {
+     "mint": "AmZuyFhJ8pGFKgCqChxBa2xN4KtxnNPGLT9jXWpMWBUy",
+     "pnl_pct": -4.634337727558067,
+     "pnl_usd": -0.0893326810774038,
+     "win": false,
+     "why": "trailing-stop",
+     "ts": 1792743997.7137768,
+     "feat": {
+      "m5": 14.38,
+      "h1": 2.38,
+      "liq": 9022.9,
+      "vol_h1": 18308.64,
+      "txns": 51,
+      "holders": 618,
+      "top10": 24.63,
+      "score": 10,
+      "age": 124.13379059244792
+     }
     }
    ],
    "cooldown": {
@@ -2887,40 +2829,9 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 7.710502456149232,
+   "paper_usd": 7.621169775071828,
    "start_usd": 10.0,
-   "positions": {
-    "AmZuyFhJ8pGFKgCqChxBa2xN4KtxnNPGLT9jXWpMWBUy": {
-     "name": "WOMB",
-     "entry_price": 1.593e-05,
-     "entry_liq": 9022.9,
-     "ts": 1792743221.5631545,
-     "cost_usd": 1.927625614037308,
-     "size_tokens": 121006.00213667972,
-     "score": 10,
-     "holders": 618,
-     "top10": 24.63,
-     "tp": 126.06,
-     "sl": 3.0,
-     "hold": 15,
-     "trail": 9.21,
-     "page_id": "40293233-c104-8147-84bd-d40c5be1c351",
-     "feat": {
-      "m5": 14.38,
-      "h1": 2.38,
-      "liq": 9022.9,
-      "vol_h1": 18308.64,
-      "txns": 51,
-      "holders": 618,
-      "top10": 24.63,
-      "score": 10,
-      "age": 124.13379059244792
-     },
-     "peak_price": 1.613e-05,
-     "last_price": 1.613e-05,
-     "last_patch": 1792743235.2160013
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "4TL8viYE5iwu2oLbiE1JZmj98EnVBdsWENQcakAYpump",
@@ -2977,6 +2888,25 @@
       "top10": 13.8,
       "score": 15,
       "age": 75.88958308105468
+     }
+    },
+    {
+     "mint": "AmZuyFhJ8pGFKgCqChxBa2xN4KtxnNPGLT9jXWpMWBUy",
+     "pnl_pct": -4.634337727558067,
+     "pnl_usd": -0.0893326810774038,
+     "win": false,
+     "why": "trailing-stop",
+     "ts": 1792743998.3090885,
+     "feat": {
+      "m5": 14.38,
+      "h1": 2.38,
+      "liq": 9022.9,
+      "vol_h1": 18308.64,
+      "txns": 51,
+      "holders": 618,
+      "top10": 24.63,
+      "score": 10,
+      "age": 124.13379059244792
      }
     }
    ],
@@ -3264,41 +3194,9 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 7.799553192048976,
+   "paper_usd": 7.270668654750009,
    "start_usd": 10.0,
-   "positions": {
-    "z1gC6KiMdhnp5RjRtH63JjXhrWKpqK1qaDVBLfCpump": {
-     "name": "GUST",
-     "entry_price": 0.0001183,
-     "entry_liq": 28576.97,
-     "ts": 1792743193.5214968,
-     "cost_usd": 1.949888298012244,
-     "size_tokens": 16482.572257077296,
-     "score": 35,
-     "holders": 2373,
-     "top10": 20.15,
-     "tp": 80.0,
-     "sl": 3.0,
-     "hold": 14,
-     "trail": 10.0,
-     "page_id": "40293233-c104-81cb-b12f-ea3c88530c8c",
-     "feat": {
-      "m5": 7.91,
-      "h1": 169,
-      "liq": 28576.97,
-      "vol_h1": 388231,
-      "txns": 294,
-      "holders": 2373,
-      "top10": 20.15,
-      "score": 35,
-      "age": 42.10624974772136
-     },
-     "peak_price": 0.0001286,
-     "last_price": 0.0001286,
-     "armed": true,
-     "last_patch": 1792743216.6179595
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "4TL8viYE5iwu2oLbiE1JZmj98EnVBdsWENQcakAYpump",
@@ -3336,6 +3234,25 @@
       "top10": 69.55,
       "score": 30,
       "age": 2.033152978515625
+     }
+    },
+    {
+     "mint": "z1gC6KiMdhnp5RjRtH63JjXhrWKpqK1qaDVBLfCpump",
+     "pnl_pct": -27.123837700760777,
+     "pnl_usd": -0.5288845372989678,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792743796.1881154,
+     "feat": {
+      "m5": 7.91,
+      "h1": 169,
+      "liq": 28576.97,
+      "vol_h1": 388231,
+      "txns": 294,
+      "holders": 2373,
+      "top10": 20.15,
+      "score": 35,
+      "age": 42.10624974772136
      }
     }
    ],
@@ -3516,40 +3433,9 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 7.710502456149232,
+   "paper_usd": 7.621169775071828,
    "start_usd": 10.0,
-   "positions": {
-    "AmZuyFhJ8pGFKgCqChxBa2xN4KtxnNPGLT9jXWpMWBUy": {
-     "name": "WOMB",
-     "entry_price": 1.593e-05,
-     "entry_liq": 9022.9,
-     "ts": 1792743222.1272783,
-     "cost_usd": 1.927625614037308,
-     "size_tokens": 121006.00213667972,
-     "score": 10,
-     "holders": 618,
-     "top10": 24.63,
-     "tp": 150.13,
-     "sl": 3.0,
-     "hold": 15,
-     "trail": 10.0,
-     "page_id": "40293233-c104-81b3-b2df-e46664f11d3a",
-     "feat": {
-      "m5": 14.38,
-      "h1": 2.38,
-      "liq": 9022.9,
-      "vol_h1": 18308.64,
-      "txns": 51,
-      "holders": 618,
-      "top10": 24.63,
-      "score": 10,
-      "age": 124.13379059244792
-     },
-     "peak_price": 1.613e-05,
-     "last_price": 1.613e-05,
-     "last_patch": 1792743235.502123
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "4TL8viYE5iwu2oLbiE1JZmj98EnVBdsWENQcakAYpump",
@@ -3607,6 +3493,25 @@
       "score": 15,
       "age": 75.88958308105468
      }
+    },
+    {
+     "mint": "AmZuyFhJ8pGFKgCqChxBa2xN4KtxnNPGLT9jXWpMWBUy",
+     "pnl_pct": -4.634337727558067,
+     "pnl_usd": -0.0893326810774038,
+     "win": false,
+     "why": "trailing-stop",
+     "ts": 1792743998.9424672,
+     "feat": {
+      "m5": 14.38,
+      "h1": 2.38,
+      "liq": 9022.9,
+      "vol_h1": 18308.64,
+      "txns": 51,
+      "holders": 618,
+      "top10": 24.63,
+      "score": 10,
+      "age": 124.13379059244792
+     }
     }
    ],
    "cooldown": {
@@ -3649,41 +3554,9 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 7.799553192048976,
+   "paper_usd": 7.270668654750009,
    "start_usd": 10.0,
-   "positions": {
-    "z1gC6KiMdhnp5RjRtH63JjXhrWKpqK1qaDVBLfCpump": {
-     "name": "GUST",
-     "entry_price": 0.0001183,
-     "entry_liq": 28576.97,
-     "ts": 1792743193.0275247,
-     "cost_usd": 1.949888298012244,
-     "size_tokens": 16482.572257077296,
-     "score": 35,
-     "holders": 2373,
-     "top10": 20.15,
-     "tp": 114.72,
-     "sl": 3.0,
-     "hold": 15,
-     "trail": 10.41,
-     "page_id": "40293233-c104-8136-805f-e37dabe15616",
-     "feat": {
-      "m5": 7.91,
-      "h1": 169,
-      "liq": 28576.97,
-      "vol_h1": 388231,
-      "txns": 294,
-      "holders": 2373,
-      "top10": 20.15,
-      "score": 35,
-      "age": 42.10624974772136
-     },
-     "peak_price": 0.0001286,
-     "last_price": 0.0001286,
-     "armed": true,
-     "last_patch": 1792743218.3844013
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "4TL8viYE5iwu2oLbiE1JZmj98EnVBdsWENQcakAYpump",
@@ -3721,6 +3594,25 @@
       "top10": 69.55,
       "score": 30,
       "age": 2.033152978515625
+     }
+    },
+    {
+     "mint": "z1gC6KiMdhnp5RjRtH63JjXhrWKpqK1qaDVBLfCpump",
+     "pnl_pct": -27.123837700760777,
+     "pnl_usd": -0.5288845372989678,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792743797.1340282,
+     "feat": {
+      "m5": 7.91,
+      "h1": 169,
+      "liq": 28576.97,
+      "vol_h1": 388231,
+      "txns": 294,
+      "holders": 2373,
+      "top10": 20.15,
+      "score": 35,
+      "age": 42.10624974772136
      }
     }
    ],
@@ -3765,41 +3657,9 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 8.058732757707428,
+   "paper_usd": 7.577848487040935,
    "start_usd": 10.0,
-   "positions": {
-    "z1gC6KiMdhnp5RjRtH63JjXhrWKpqK1qaDVBLfCpump": {
-     "name": "GUST",
-     "entry_price": 0.0001183,
-     "entry_liq": 28576.97,
-     "ts": 1792743194.0165732,
-     "cost_usd": 1.7729212066956344,
-     "size_tokens": 14986.654325406884,
-     "score": 35,
-     "holders": 2373,
-     "top10": 20.15,
-     "tp": 134.05,
-     "sl": 3.23,
-     "hold": 15,
-     "trail": 10.0,
-     "page_id": "40293233-c104-81fe-ac71-ff116b904bac",
-     "feat": {
-      "m5": 7.91,
-      "h1": 169,
-      "liq": 28576.97,
-      "vol_h1": 388231,
-      "txns": 294,
-      "holders": 2373,
-      "top10": 20.15,
-      "score": 35,
-      "age": 42.10624974772136
-     },
-     "peak_price": 0.0001286,
-     "last_price": 0.0001286,
-     "armed": true,
-     "last_patch": 1792743218.6263022
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "4TL8viYE5iwu2oLbiE1JZmj98EnVBdsWENQcakAYpump",
@@ -3837,6 +3697,25 @@
       "top10": 69.55,
       "score": 30,
       "age": 2.033152978515625
+     }
+    },
+    {
+     "mint": "z1gC6KiMdhnp5RjRtH63JjXhrWKpqK1qaDVBLfCpump",
+     "pnl_pct": -27.123837700760777,
+     "pnl_usd": -0.48088427066649336,
+     "win": false,
+     "why": "crash exit",
+     "ts": 1792743797.960665,
+     "feat": {
+      "m5": 7.91,
+      "h1": 169,
+      "liq": 28576.97,
+      "vol_h1": 388231,
+      "txns": 294,
+      "holders": 2373,
+      "top10": 20.15,
+      "score": 35,
+      "age": 42.10624974772136
      }
     }
    ],
@@ -4631,9 +4510,86 @@
     "symbol": "WOMB",
     "danger": false
    }
+  },
+  "72SnAkzHh4cxhHDcZJEUT5KNJcq5jC5MZ7Qzz3c5RdSe": {
+   "ts": 1792743798.6666412,
+   "a": {
+    "score": 10,
+    "liq": 42551.62,
+    "holders": 83,
+    "top10": 7.29,
+    "symbol": "NEX Ai",
+    "danger": true
+   }
+  },
+  "Ai5ppS7QX46asWqE9Sr22ea79trVEgUEVNeWs1Qe5hjq": {
+   "ts": 1792743798.6666412,
+   "a": {
+    "score": 10,
+    "liq": 21307.98,
+    "holders": 305,
+    "top10": 14.21,
+    "symbol": "Gemini",
+    "danger": true
+   }
+  },
+  "52aUZcKKi19bXvtFYmBUavJa3RHAzpHzRgjVBFPCjFMp": {
+   "ts": 1792743914.7287211,
+   "a": {
+    "score": 10,
+    "liq": 25109.64,
+    "holders": 514,
+    "top10": 2.81,
+    "symbol": "Rosalind",
+    "danger": true
+   }
+  },
+  "6mYfg1EmMVjbQv38QGY5XdRUQ4SyNpFauL1aiRiWpump": {
+   "ts": 1792743999.5536795,
+   "a": {
+    "score": 40,
+    "liq": 39199.29,
+    "holders": 7634,
+    "top10": 23.81,
+    "symbol": "Au",
+    "danger": false
+   }
+  },
+  "CFrK3XsDUj5zHPJwWzB6m3tw2BBmYxteesqdnstepump": {
+   "ts": 1792744033.863052,
+   "a": {
+    "score": 0,
+    "liq": 48994.25,
+    "holders": 215,
+    "top10": 85.82,
+    "symbol": "BeastMr",
+    "danger": true
+   }
+  },
+  "8d1wwivt6PUn33xpTk9TtibC6R6nMLCLmreKiSRpmoon": {
+   "ts": 1792744033.863052,
+   "a": {
+    "score": 0,
+    "liq": 130501.23,
+    "holders": 80,
+    "top10": 93.93,
+    "symbol": "GAIPIG",
+    "danger": true
+   }
+  },
+  "9woErGyh7BMrgAKxWHWNvAjWcqkaKVTaKMmXL3hY5mM4": {
+   "ts": 1792744033.863052,
+   "a": {
+    "score": 10,
+    "liq": 39277.23,
+    "holders": 194,
+    "top10": 13.88,
+    "symbol": "GTA6 Coin",
+    "danger": true
+   }
   }
  },
  "halted": false,
- "tg_offset": 872775028,
+ "tg_offset": 872775032,
  "await": null
 }
