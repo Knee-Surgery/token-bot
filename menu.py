@@ -95,7 +95,8 @@ async def screen(g, S, key, pc):
         live = [v for v in S["variants"].values() if v["status"] != "retired" and v["closed"]]
         live.sort(key=lambda v: -sum(t["pnl_usd"] for t in v["closed"]))
         rows = [f"{i}. {v['id']}  {usd(sum(t['pnl_usd'] for t in v['closed']))} · "
-                f"{sum(1 for t in v['closed'] if t['win'])}/{len(v['closed'])} wins" for i, v in enumerate(live[:10], 1)]
+                f"{sum(1 for t in evo.test_trades(v) if t['win'])} wins of {evo.WIN_MIN_PCT:g}%+"
+                for i, v in enumerate(live[:10], 1)]
         M = S.get("milestone") or {}
         return ("📊 TOP BOTS\n\n" + ("\n".join(rows) or "No trades yet.")
                 + f"\n\nReliable: {M.get('count', 0)}/{evo.GOAL_BOTS}")
@@ -119,9 +120,11 @@ async def screen(g, S, key, pc):
         n = sum(len(ps) for ps in by_token.values())
         return f"💼 OPEN TRADES · {n}\n\n" + ("\n".join(lines) or "None right now.")
     if key == "recent":
-        rows = sorted((t for v in S["variants"].values() for t in v["closed"]), key=lambda t: t["ts"], reverse=True)[:10]
-        lines = [f"{'✅' if t['win'] else '❌'} {t.get('name') or t['mint'][:5]}  {t['pnl_pct']:+.1f}% · "
-                 f"{usd(t['pnl_usd'])}" for t in rows]
+        rows = sorted([(t, False) for v in S["variants"].values() for t in v["closed"]]
+                      + [(t, True) for v in S["variants"].values() for t in v.get("recovery") or []],
+                      key=lambda r: r[0]["ts"], reverse=True)[:10]
+        lines = [f"{'🔁' if rec else '✅' if t['win'] else '❌'} {t.get('name') or t['mint'][:5]}  {t['pnl_pct']:+.1f}% · "
+                 f"{usd(t['pnl_usd'])}" for t, rec in rows]
         return "📜 LAST 10 TRADES\n\n" + ("\n".join(lines) or "No trades yet.")
     return menu_text(S)
 

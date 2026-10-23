@@ -61,6 +61,24 @@ MAX_HOLD_FLAT = float(os.getenv("EVO_MAX_HOLD_MIN", "15"))   # everything not in
 # 1 of 72 trades across 12 tokens (paper data to 2026-10-23)
 HARD_MIN_VOL_LIQ = float(os.getenv("EVO_MIN_VOL_LIQ", "0.5"))
 
+# testing only sees trades that netted at least this much, or lost money. Small profits (0 to 8%) are left out of
+# the checks, proven, validation and reliable-bot counts: they prove nothing. Their money still counts.
+WIN_MIN_PCT = float(os.getenv("EVO_WIN_MIN_PCT", "8"))
+
+# recovery trades: an idle bot takes a small quick trade to win back funds; never counted in testing
+RECOVERY_ON = os.getenv("EVO_RECOVERY", "true").lower() == "true"
+RECOVERY_IDLE_MIN = float(os.getenv("EVO_RECOVERY_IDLE_MIN", "30"))  # a bot must trade at least this often
+RECOVERY_NET_PCT = float(os.getenv("EVO_RECOVERY_NET_PCT", "1.0"))   # net profit target (TP = this + costs)
+RECOVERY_SL = float(os.getenv("EVO_RECOVERY_SL_PCT", "3"))
+RECOVERY_HOLD = float(os.getenv("EVO_RECOVERY_HOLD_MIN", "15"))
+RECOVERY_CHECK_N = int(os.getenv("EVO_RECOVERY_CHECK_N", "40"))       # pause them if net negative after this many
+
+
+def test_trades(v) -> list:
+    """The trades a bot is tested on: wins of WIN_MIN_PCT or more, and every loss (recovery trades are not in
+    v["closed"] at all)."""
+    return [t for t in v["closed"] if t["pnl_pct"] >= WIN_MIN_PCT or t["pnl_usd"] <= 0]
+
 # rug-risk reasoning (hard rules; evolution can only make them stricter)
 # pair must be at least this old (minutes). 4 h: across 61 tokens, entries into pairs under 4 h lost $237 of the
 # $235 total; 4 h-1 day was about flat and over 1 day slightly positive (paper data to 2026-10-23)
@@ -163,6 +181,8 @@ def save(S: dict):
     for v in S["variants"].values():
         if v["status"] == "retired" and len(v["closed"]) > 60:
             v["closed"] = v["closed"][-60:]
+        if len(v.get("recovery") or []) > 20:  # recovery trades only matter for the money, already counted
+            v["recovery"] = v["recovery"][-20:]
         v["cooldown"] = dict(sorted(v["cooldown"].items(), key=lambda kv: kv[1])[-50:])
     STATE.write_text(json.dumps(S, separators=(",", ":")))  # compact: a third smaller to write and to commit
 
@@ -198,7 +218,7 @@ def random_genome() -> dict:
 
 
 def fitness(v: dict) -> float:
-    c = v["closed"]
+    c = test_trades(v)
     if not c:
         return -999
     wr = sum(1 for t in c if t["win"]) / len(c)
@@ -207,7 +227,7 @@ def fitness(v: dict) -> float:
 
 def learn_targets(S: dict, gn: dict) -> dict:
     """What did winning trades look like across every variant? Suggested thresholds for filters that are ON."""
-    trades = [t for v in S["variants"].values() for t in v["closed"] if t.get("feat")]
+    trades = [t for v in S["variants"].values() for t in test_trades(v) if t.get("feat")]
     wins = [t["feat"] for t in trades if t["win"]]
     if len(trades) < 20 or len(wins) < 5:
         return {}
@@ -290,7 +310,7 @@ def spawn(S) -> tuple[dict, str]:
     if seeds_used < len(SEEDS):
         v = new_variant(S, clamp(SEEDS[seeds_used]), 0, None, ["seed"])
         return v, f"{v['id']} (seed)"
-    pool = [x for x in S["variants"].values() if len(x["closed"]) >= 5]
+    pool = [x for x in S["variants"].values() if len(test_trades(x)) >= 5]
     if not pool and random.random() < 0.6:
         base = clamp(random.choice(SEEDS))
         gn = {k: (float(x) * random.uniform(0.75, 1.3) if isinstance(x, (int, float)) and not isinstance(x, bool) and x else x)
@@ -328,9 +348,16 @@ def judge(v: dict):
     if v["status"] not in ("testing", "validating"):
         return None
     validating = v["status"] == "validating"
-    w = v["closed"][v["val_start"]:] if validating else v["closed"]
+    T = test_trades(v)
+    if validating:
+        if not v.get("val_ts"):  # bots that began validating before this was stored by time
+            c = v["closed"]
+            v["val_ts"] = c[v["val_start"]]["ts"] if len(c) > v.get("val_start", 0) else time.time()
+        w = [t for t in T if t["ts"] >= v["val_ts"]]
+    else:
+        w = T
     n = len(w)
-    total = sum(t["pnl_usd"] for t in v["closed"])
+    total = sum(t["pnl_usd"] for t in v["closed"])  # drawdown is about money: every real trade counts
     if total < -v["start_usd"] * MAX_DD_PCT / 100:
         return ("retire", f"drawdown {total:+.2f} USD")
     if validating:
@@ -373,7 +400,7 @@ def meets(w: list) -> tuple[bool, str]:
 def breed_proven(S, v, events):
     """Meets the requirements (win rate >= REQ_WR, net positive) after CHECK_1 trades: stays alive and breeds a
     mutated child; again at CHECK_2 and then every further 10 closed trades while it keeps meeting them."""
-    c = v["closed"]
+    c = test_trades(v)
     n = len(c)
     if n < CHECK_1 or not meets(c)[0]:
         return
@@ -395,7 +422,8 @@ def apply_judgement(S, v, events):
     if not res:
         return
     kind, why = res
-    n, wins = len(v["closed"]), sum(1 for t in v["closed"] if t["win"])
+    T = test_trades(v)
+    n, wins = len(T), sum(1 for t in T if t["win"])
     pnl = sum(t["pnl_usd"] for t in v["closed"])
     if kind == "retire":
         v["status"], v["reason"] = "retired", why
@@ -407,7 +435,7 @@ def apply_judgement(S, v, events):
         v["vchk"] = True
     elif kind == "graduate":
         v["chk"] = 2
-        v["status"], v["val_start"] = "validating", len(v["closed"])
+        v["status"], v["val_start"], v["val_ts"] = "validating", len(v["closed"]), time.time()
         events.append(f"GRADUATED {v['id']}: passed the {CHECK_1}- and {CHECK_2}-trade checks ({wins}/{n} wins, "
                       f"net {pnl:+.2f} USD). Now validating on {VAL_TRADES} fresh trades.")
     elif kind == "validated":
@@ -439,7 +467,7 @@ def consistent(trades: list, min_trades=CONS_TRADES, min_tokens=CONS_TOKENS) -> 
 
 
 def consistent_bots(S) -> list:
-    return [v for v in S["variants"].values() if v["status"] != "retired" and consistent(v["closed"])]
+    return [v for v in S["variants"].values() if v["status"] != "retired" and consistent(test_trades(v))]
 
 
 def milestone(S, events):
@@ -471,7 +499,7 @@ def milestone(S, events):
         # every trade since the test began counts, including bots retired during it (overall running total)
         pnl = (S.get("total_pnl") or 0.0) - M["pnl_at_start"]
         n = S.get("total_trades", 0) - M["trades_at_start"]
-        ok_bots = sum(1 for v in active(S) if consistent([t for t in v["closed"] if t["ts"] >= M["since"]],
+        ok_bots = sum(1 for v in active(S) if consistent([t for t in test_trades(v) if t["ts"] >= M["since"]],
                                                          PROOF_TRADES, PROOF_TOKENS))
         if pnl > 0 and ok_bots >= GOAL_BOTS:
             M.update(stage="ready", ready_at=now, proof_pnl=pnl, proof_bots=ok_bots)
@@ -678,8 +706,18 @@ async def monitor(g, S, pc, events, notes_out):
                 net = gross - COST_PCT - slip
                 pnl_usd = pos["cost_usd"] * net / 100
                 v["paper_usd"] += pnl_usd
-                v["closed"].append({"mint": mint, "pnl_pct": net, "pnl_usd": pnl_usd, "win": net > 0,
-                                    "why": why, "ts": now, "feat": pos.get("feat"), "name": pos["name"]})
+                rec = {"mint": mint, "pnl_pct": net, "pnl_usd": pnl_usd, "win": net > 0,
+                       "why": why, "ts": now, "feat": pos.get("feat"), "name": pos["name"]}
+                if pos.get("recovery"):  # funds only: kept out of the bot's testing record
+                    v.setdefault("recovery", []).append(rec)
+                    R = S.setdefault("recovery_stats", {"n": 0, "wins": 0, "pnl": 0.0, "paused": False})
+                    R["n"] += 1; R["wins"] += net > 0; R["pnl"] += pnl_usd
+                    if not R["paused"] and R["n"] >= RECOVERY_CHECK_N and R["pnl"] < 0:
+                        R["paused"] = True
+                        events.append(f"⚠️ Recovery trades paused: {R['n']} trades lost "
+                                      f"${-R['pnl']:,.2f}. Small targets can't beat trading costs here.")
+                else:
+                    v["closed"].append(rec)
                 S["total_wins"] = S.get("total_wins", 0) + (net > 0)
                 del v["positions"][mint]
                 # overall running total across every bot (what the journal's P&L chart plots)
@@ -704,7 +742,8 @@ async def monitor(g, S, pc, events, notes_out):
                     "Mode": auto._sel("Paper")}))
                 if NOTIFY_TRADES or why in ("liquidity collapse", "crash exit"):
                     events.append(f"[{v['id']}] closed {pos['name']} ({why}) {net:+.1f}% = {pnl_usd:+.2f} USD")
-                apply_judgement(S, v, events)
+                if not pos.get("recovery"):
+                    apply_judgement(S, v, events)
             except Exception as e:
                 log.warning("monitor %s %s: %s", v["id"], mint, e)
 
@@ -728,6 +767,7 @@ async def scan(g, S, pc, events):
     cands = (await auto.discover(g, HARD_MIN_AGE))[:CANDIDATE_LIMIT]
     await prefetch(g, pc, cands, 15)  # one request per 30 coins instead of one each
     analyses = 0
+    ok_tokens = []  # coins that passed every safety rule this scan (recovery trades pick from these)
     for mint in cands:
         if not free:
             break
@@ -777,14 +817,11 @@ async def scan(g, S, pc, events):
                 for k in sorted(rs, key=rs.get)[:10]:
                     del rs[k]
             continue
+        ok_tokens.append((mint, p, a, age))
         slots = MAX_PER_TOKEN - sum(1 for vv in S["variants"].values() if mint in vv["positions"])
         if slots <= 0:
             continue
 
-        price = float(p["priceUsd"])
-        liq = float((p.get("liquidity") or {}).get("usd", 0))
-        slip = LAUNCH_SLIP if (age is not None and age < 15) else 0.0
-        fill = price * (1 + slip / 100)
         random.shuffle(wanting)
         for v in wanting:
             if slots <= 0:
@@ -797,35 +834,98 @@ async def scan(g, S, pc, events):
             target = max(TARGET_USD, float(gn.get("target_usd", TARGET_USD)))
             if exp_net < target * 0.9:
                 continue  # position too small to net the variant's dollar target at its TP
-            name = auto.token_name(a, mint)
-            size_tokens = size_usd / fill
-            ts = time.time()
-            page_id, _ = await asyncio.gather(auto.n_create(g, auto.DB_OPEN, {
-                "Token": auto._title(name), "Mint": auto._text(mint), "Entry Time": auto._date(ts),
-                "Entry Price (USD)": auto._num(fill), "Current Price (USD)": auto._num(price),
-                "Size (Tokens)": auto._num(size_tokens), "Cost Basis (USD)": auto._num(size_usd),
-                "Current Value (USD)": auto._num(size_usd), "Unrealised PnL (USD)": auto._num(0),
-                "Unrealised PnL %": auto._num(0), "Score": auto._num(a["score"]),
-                "Holders": auto._num(a["holders"]), "Top 10 %": auto._num(a["top10"]),
-                "Mode": auto._sel("Paper"),
-                "Notes": auto._text(f"Variant {v['id']} gen{v['gen']} | age "
-                                    f"{'?' if age is None else f'{age:.0f}m'} | TP {gn['tp']}% SL {gn['sl']}% "
-                                    f"trail {gn['trail']}% hold {gn['hold']}m")}),
-                auto.n_create(g, auto.DB_EVENTS, {
-                "Event": auto._title(f"Entry {name} [{v['id']}]"), "Type": auto._sel("Entry"),
-                "Token": auto._text(name), "Time": auto._date(ts), "Price (USD)": auto._num(fill),
-                "Mode": auto._sel("Paper")}))
-            v["positions"][mint] = {"name": name, "entry_price": fill, "entry_liq": liq, "ts": ts,
-                                    "cost_usd": size_usd, "size_tokens": size_tokens, "score": a["score"],
-                                    "holders": a["holders"], "top10": a["top10"], "tp": gn["tp"], "sl": gn["sl"],
-                                    "hold": gn["hold"], "trail": gn["trail"], "page_id": page_id,
-                                    "lock_pull": gn["lock_pull"], "stall": gn["stall"],
-                                    "feat": features(p, a, age), "peak_price": fill, "last_price": price}
-            v["cooldown"][mint] = ts
+            await open_position(g, v, mint, p, a, age, size_usd, gn)
             free.remove(v)
             slots -= 1
-            if NOTIFY_TRADES:
-                events.append(f"[{v['id']}] opened {name} ~${size_usd:.2f}")
+
+    await recovery_trades(g, S, pc, free, ok_tokens)
+
+
+async def open_position(g, v, mint, p, a, age, size_usd, ex, recovery=False):
+    """Open a paper position for bot v with exit settings ex (tp, sl, hold, trail, lock_pull, stall)."""
+    price = float(p["priceUsd"])
+    liq = float((p.get("liquidity") or {}).get("usd", 0))
+    slip = LAUNCH_SLIP if (age is not None and age < 15) else 0.0
+    fill = price * (1 + slip / 100)
+    name = auto.token_name(a, mint)
+    size_tokens = size_usd / fill
+    ts = time.time()
+    kind = " | recovery trade" if recovery else ""
+    page_id, _ = await asyncio.gather(auto.n_create(g, auto.DB_OPEN, {
+        "Token": auto._title(name), "Mint": auto._text(mint), "Entry Time": auto._date(ts),
+        "Entry Price (USD)": auto._num(fill), "Current Price (USD)": auto._num(price),
+        "Size (Tokens)": auto._num(size_tokens), "Cost Basis (USD)": auto._num(size_usd),
+        "Current Value (USD)": auto._num(size_usd), "Unrealised PnL (USD)": auto._num(0),
+        "Unrealised PnL %": auto._num(0), "Score": auto._num(a["score"]),
+        "Holders": auto._num(a["holders"]), "Top 10 %": auto._num(a["top10"]),
+        "Mode": auto._sel("Paper"),
+        "Notes": auto._text(f"Variant {v['id']} gen{v['gen']} | age "
+                            f"{'?' if age is None else f'{age:.0f}m'} | TP {ex['tp']:.1f}% SL {ex['sl']}% "
+                            f"trail {ex['trail']}% hold {ex['hold']}m{kind}")}),
+        auto.n_create(g, auto.DB_EVENTS, {
+        "Event": auto._title(f"Entry {name} [{v['id']}]"), "Type": auto._sel("Entry"),
+        "Token": auto._text(name), "Time": auto._date(ts), "Price (USD)": auto._num(fill),
+        "Mode": auto._sel("Paper")}))
+    v["positions"][mint] = {"name": name, "entry_price": fill, "entry_liq": liq, "ts": ts,
+                            "cost_usd": size_usd, "size_tokens": size_tokens, "score": a["score"],
+                            "holders": a["holders"], "top10": a["top10"], "tp": ex["tp"], "sl": ex["sl"],
+                            "hold": ex["hold"], "trail": ex["trail"], "page_id": page_id,
+                            "lock_pull": ex["lock_pull"], "stall": ex["stall"],
+                            "feat": features(p, a, age), "peak_price": fill, "last_price": price,
+                            "recovery": recovery}
+    v["cooldown"][mint] = ts
+    v["last_entry"] = ts
+
+
+def last_entry(v) -> float:
+    return v.get("last_entry") or max(list(v["cooldown"].values()) + [v["created"]])
+
+
+async def recovery_trades(g, S, pc, free, ok_tokens):
+    """Recovery trades: a bot that has not opened a trade for RECOVERY_IDLE_MIN minutes takes a small, quick one
+    (+RECOVERY_NET_PCT% net target) on the most active coin that passed every safety rule this scan. They only exist
+    to win back paper funds a little at a time: they are kept apart from the bot's real trades and never count in
+    its testing (checks, proven, validation, reliable bots). Paused automatically if they lose money overall."""
+    R = S.setdefault("recovery_stats", {"n": 0, "wins": 0, "pnl": 0.0, "paused": False})
+    if not RECOVERY_ON or R["paused"] or S["halted"]:
+        return
+    now = time.time()
+    idle = sorted((v for v in free if not v["positions"] and v["status"] != "retired" and v["paper_usd"] > 1
+                   and now - last_entry(v) >= RECOVERY_IDLE_MIN * 60), key=last_entry)  # longest idle first
+    if not idle:
+        return
+    seen = {m for m, *_ in ok_tokens}
+    for mint, ac in S["acache"].items():  # coins checked in earlier scans are fine too, if still safe
+        hit = pc.get(mint)
+        if mint in seen or not hit or not hit[1] or now - hit[0] > 60 or now - ac["ts"] > ACACHE_TTL_MIN * 60:
+            continue
+        p, age = hit[1], pair_age_min(hit[1], now)
+        liq = (p.get("liquidity") or {}).get("usd", 0) or 0
+        if (p.get("priceUsd") and age is not None and age >= HARD_MIN_AGE and liq
+                and ((p.get("volume") or {}).get("h1", 0) or 0) / liq >= HARD_MIN_VOL_LIQ and rug_ok(ac["a"], p)[0]):
+            ok_tokens.append((mint, p, ac["a"], age))
+
+    def activity(item):  # rising coins first, then the most traded relative to liquidity
+        p = item[1]
+        ch = p.get("priceChange") or {}
+        liq = (p.get("liquidity") or {}).get("usd", 0) or 1
+        return ((ch.get("m5") or 0) > 0 and (ch.get("h1") or 0) > 0, ((p.get("volume") or {}).get("h1", 0) or 0) / liq)
+
+    coins = sorted(ok_tokens, key=activity, reverse=True)
+    ex = {"tp": RECOVERY_NET_PCT + COST_PCT, "sl": RECOVERY_SL, "hold": RECOVERY_HOLD, "trail": 30,
+          "lock_pull": 15, "stall": 30}  # take the small profit at once; no trailing or discretionary exits
+    for mint, p, a, age in coins:
+        held = sum(1 for vv in S["variants"].values() if mint in vv["positions"])
+        while idle and held < MAX_PER_TOKEN:
+            v = idle.pop(0)
+            if now - v["cooldown"].get(mint, 0) <= COOLDOWN_MIN * 60:
+                continue
+            await open_position(g, v, mint, p, a, age, v["paper_usd"] * v["genome"]["size_frac"], ex, recovery=True)
+            if v in free:
+                free.remove(v)
+            held += 1
+        if not idle:
+            break
 
 
 # ---------- reporting ----------
@@ -852,7 +952,7 @@ def leaderboard(S) -> str:
             f"\nValidated candidates: {', '.join(validated) or 'none yet'}" + why)
 
 
-ALERTS = ("🎯", "✅", "❌", "🆕", "⭐")  # sent straight away; everything else only feeds the hourly summary
+ALERTS = ("🎯", "✅", "❌", "🆕", "⭐", "⚠️")  # sent straight away; everything else only feeds the hourly summary
 DIGEST_MIN = float(os.getenv("TG_DIGEST_MIN", "60"))
 
 
@@ -864,8 +964,10 @@ async def flush(tb, g, S, events):
     now = time.time()
     D = S.get("digest")
     if not D:
+        R = S.get("recovery_stats") or {}
         D = S["digest"] = {"since": now, "pnl": S.get("total_pnl") or 0.0, "trades": S.get("total_trades", 0),
-                           "wins": S.get("total_wins", 0), "new": 0, "retired": 0}
+                           "wins": S.get("total_wins", 0), "new": 0, "retired": 0,
+                           "rec_n": R.get("n", 0), "rec_pnl": R.get("pnl", 0.0)}
     msgs = []
     for e in events:
         if e.startswith(ALERTS):
@@ -885,6 +987,10 @@ async def flush(tb, g, S, events):
             if n:
                 lines.append(f"Trades: {n} ({w} won)")
                 lines.append(f"P&L: {menu.usd(pnl)}")
+                R = S.get("recovery_stats") or {}
+                rn = R.get("n", 0) - D.get("rec_n", 0)
+                if rn:
+                    lines.append(f"🔁 Recovery: {rn} trades, {menu.usd(R.get('pnl', 0.0) - D.get('rec_pnl', 0.0))}")
             lines.append(f"Total: {menu.usd(S.get('total_pnl') or 0.0)}")
             if D["new"] or D["retired"]:
                 lines.append(f"Bots: {D['new']} new, {D['retired']} retired")
