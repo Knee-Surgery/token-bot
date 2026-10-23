@@ -26,7 +26,9 @@ import auto
 log = logging.getLogger("evo")
 STATE = Path("evo_state.json")
 
-POP = int(os.getenv("EVO_POP", "6"))
+POP = int(os.getenv("EVO_POP", "22"))
+PROVEN_WR = float(os.getenv("EVO_PROVEN_WR", "0.8"))  # win rate (after EVAL_AFTER trades) that keeps a bot alive and lets it breed
+MAX_POP = int(os.getenv("EVO_MAX_POP", "30"))          # breeding may push the population above POP, never above this
 START_USD = float(os.getenv("EVO_START_USD", "10"))
 TARGET_WR = float(os.getenv("EVO_TARGET_WINRATE", "0.9"))
 EVAL_AFTER = int(os.getenv("EVO_EVAL_AFTER", "10"))
@@ -224,8 +226,15 @@ def spawn(S) -> tuple[dict, str]:
         v = new_variant(S, clamp(SEEDS[seeds_used]), 0, None, ["seed"])
         return v, f"{v['id']} (seed)"
     pool = [x for x in S["variants"].values() if len(x["closed"]) >= 5]
+    if not pool and random.random() < 0.6:
+        base = clamp(random.choice(SEEDS))
+        gn = {k: (float(x) * random.uniform(0.75, 1.3) if isinstance(x, (int, float)) and not isinstance(x, bool) and x else x)
+              for k, x in base.items()}
+        v = new_variant(S, clamp(gn), 0, None, ["seed jitter"])
+        return v, f"{v['id']} (seed variation)"
     if pool and random.random() > 0.25:
-        parent = max(pool, key=fitness)
+        proven = [x for x in pool if x.get("proven") and x["status"] != "retired"]
+        parent = max(proven or pool, key=fitness)
         gn, notes = mutate(parent, S)
         v = new_variant(S, gn, parent["gen"] + 1, parent["id"], notes)
         return v, f"{v['id']} gen{v['gen']} from {parent['id']}: " + "; ".join(notes)
@@ -238,9 +247,15 @@ def active(S):
 
 
 def ensure_population(S, events):
+    made = []
     while len(active(S)) < POP:
         v, desc = spawn(S)
-        events.append(f"SPAWNED {desc}\n  genome: {v['genome']}")
+        made.append((v, desc))
+    if len(made) > 4:
+        events.append(f"SPAWNED {len(made)} new bots ({made[0][0]['id']}-{made[-1][0]['id']}); population now {POP}")
+    else:
+        for v, desc in made:
+            events.append(f"SPAWNED {desc}\n  genome: {v['genome']}")
 
 
 # ---------- judging ----------
@@ -257,7 +272,7 @@ def judge(v: dict):
     if n >= EVAL_AFTER:
         wr = wins / n
         tag = " in validation (likely overfit)" if validating else ""
-        if wr < TARGET_WR:
+        if wr < TARGET_WR and wr < PROVEN_WR:  # >= PROVEN_WR with positive net stays alive
             return ("retire", f"win rate {wr:.0%} after {n} trades{tag}")
         if pnl < 0:
             return ("retire", f"win rate {wr:.0%} but net {pnl:+.2f} USD after {n} trades{tag}")
@@ -268,7 +283,26 @@ def judge(v: dict):
     return None
 
 
+def breed_proven(S, v, events):
+    """Win rate >= PROVEN_WR over >= EVAL_AFTER trades: stays alive and breeds a mutated child,
+    again at every further EVAL_AFTER closed trades while it holds that win rate."""
+    c = v["closed"]
+    n, wins = len(c), sum(1 for t in c if t["win"])
+    total = sum(t["pnl_usd"] for t in c)
+    if n < EVAL_AFTER or wins / n < PROVEN_WR or total <= 0:
+        return
+    level = n // EVAL_AFTER
+    v["proven"] = True
+    while v.get("bred_lvl", 0) < level and v["status"] != "retired" and len(active(S)) < MAX_POP:
+        v["bred_lvl"] = v.get("bred_lvl", 0) + 1
+        gn, notes = mutate(v, S)
+        ch = new_variant(S, gn, v["gen"] + 1, v["id"], ["bred from proven " + v["id"]] + notes)
+        events.append(f"PROVEN {v['id']}: {wins}/{n} wins ({wins / n:.0%}), net {total:+.2f} USD. Stays alive and bred "
+                      f"{ch['id']} gen{ch['gen']}\n  {'; '.join(notes)}")
+
+
 def apply_judgement(S, v, events):
+    breed_proven(S, v, events)
     res = judge(v)
     if not res:
         return
