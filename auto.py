@@ -233,18 +233,22 @@ async def discover(g) -> list[str]:
         (_ds_mints, "ds_takeovers", f"{DS}/community-takeovers/latest/v1", None),
     ][n % 4]
     term = SEARCH_TERMS[n % len(SEARCH_TERMS)]  # keyword search across everything DexScreener knows, newest first
-    sources = [
-        (_gt_mints, "gt_new_1", f"{GT_BASE}/new_pools?page=1", GT_HEADERS),
-        (_gt_mints, f"gt_new_{p2}", f"{GT_BASE}/new_pools?page={p2}", GT_HEADERS),
-        (_ds_mints, "ds_profiles", f"{DS}/token-profiles/latest/v1", None),
-        (_ds_mints, "ds_boosts", f"{DS}/token-boosts/latest/v1", None),
-        rot,
-    ]
-    # all sources at once (same request count as before, so rate limits are unchanged; just no waiting in line)
-    *results, js = await asyncio.gather(*(_get_json(g, k, u, h) for _, k, u, h in sources),
-                                        _get_json(g, "ds_search", f"{DS}/latest/dex/search?q={term}"))
+    gt = [(_gt_mints, "gt_new_1", f"{GT_BASE}/new_pools?page=1", GT_HEADERS),
+          (_gt_mints, f"gt_new_{p2}", f"{GT_BASE}/new_pools?page={p2}", GT_HEADERS)]
+    ds = [(_ds_mints, "ds_profiles", f"{DS}/token-profiles/latest/v1", None),
+          (_ds_mints, "ds_boosts", f"{DS}/token-boosts/latest/v1", None)]
+    (gt if rot[1].startswith("gt_") else ds).append(rot)
+
+    async def one_by_one(srcs):  # GeckoTerminal rate-limits bursts, so its calls stay sequential
+        return [await _get_json(g, k, u, h) for _, k, u, h in srcs]
+
+    # GeckoTerminal (in order) alongside the DexScreener calls (in parallel): same request count as before
+    gt_res, js, *ds_res = await asyncio.gather(one_by_one(gt), _get_json(g, "ds_search", f"{DS}/latest/dex/search?q={term}"),
+                                               *(_get_json(g, k, u, h) for _, k, u, h in ds))
+    got = {k: (parse, res) for (parse, k, *_), res in zip(gt + ds, gt_res + ds_res)}
     out: list[str] = []
-    for (parse, *_), res in zip(sources, results):
+    for k in ("gt_new_1", f"gt_new_{p2}", "ds_profiles", "ds_boosts", rot[1]):  # original priority order
+        parse, res = got[k]
         out += parse(res)
     pairs = [p for p in (js or {}).get("pairs", []) if p.get("chainId") == "solana"]
     pairs.sort(key=lambda p: p.get("pairCreatedAt") or 0, reverse=True)

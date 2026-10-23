@@ -99,6 +99,9 @@ def load() -> dict:
     if STATE.exists():
         S = json.loads(STATE.read_text())
         if S.get("schema") == SCHEMA:
+            for v in S["variants"].values():  # variants born before a gene existed get its default
+                for k, d in GENE_DEFAULT.items():
+                    v["genome"].setdefault(k, d)
             return S
         # rules changed: start variants fresh, keep pause flag and Telegram offset
         return {"schema": SCHEMA, "variants": {}, "next_id": 1, "acache": {},
