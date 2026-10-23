@@ -121,25 +121,54 @@ async def analyze(mint: str) -> dict:
     except Exception as e:
         log.warning("rugcheck failed: %s", e)
 
-    # Holder distribution (best effort; the gate fails closed if this is missing)
+    # Full RugCheck report: holders plus authorities, LP lock, insiders, creator, fees (best effort; gate fails closed on holders)
     out["holders"], out["top10"] = None, None
+    out["rc"] = {}
     try:
         fr = await http.get(f"https://api.rugcheck.xyz/v1/tokens/{mint}/report")
         if fr.status_code == 200:
             rep = fr.json()
             out["holders"] = rep.get("totalHolders")
             skip = set()
+            lp_locked = []
             for m in rep.get("markets") or []:
                 for k in ("pubkey", "liquidityA", "liquidityB", "mintLP"):
                     if m.get(k):
                         skip.add(m[k])
+                lp = m.get("lp") or {}
+                if lp.get("lpLockedPct") is not None:
+                    lp_locked.append(float(lp["lpLockedPct"]))
             tops = [h for h in (rep.get("topHolders") or [])
                     if h.get("address") not in skip and h.get("owner") not in skip]
             out["top10"] = round(sum(float(h.get("pct", 0)) for h in tops[:10]), 2)
+            creator = rep.get("creator")
+            rc = {
+                "mint_auth": bool(rep.get("mintAuthority")),
+                "freeze_auth": bool(rep.get("freezeAuthority")),
+                "rugged": bool(rep.get("rugged")),
+                "top1": round(float(tops[0].get("pct", 0)), 2) if tops else None,
+                "insider_pct": round(sum(float(h.get("pct", 0)) for h in tops if h.get("insider")), 2),
+                "creator_pct": round(sum(float(h.get("pct", 0)) for h in tops
+                                         if creator and creator in (h.get("address"), h.get("owner"))), 2),
+                "lp_locked": max(lp_locked) if lp_locked else None,
+                "fee_pct": float((rep.get("transferFee") or {}).get("pct") or 0),
+                "risks": [str(r.get("name", "")).lower() for r in (rep.get("risks") or [])
+                          if r.get("level") in ("danger", "warn")][:12],
+            }
+            out["rc"] = rc
+            for r in rep.get("risks") or []:
+                if r.get("level") == "danger" and f"RugCheck [danger]: {r.get('name')}" not in out["flags"]:
+                    out["flags"].append(f"RugCheck [danger]: {r.get('name')}")
     except Exception as e:
         log.warning("holder data failed: %s", e)
     if out["holders"] is not None:
         out["lines"].append(f"Holders: {out['holders']:,}   Top 10 (excl. pools): {out['top10']}%")
+    rc = out.get("rc") or {}
+    if rc:
+        out["lines"].append(
+            f"Mint authority: {'ON' if rc['mint_auth'] else 'off'}  Freeze: {'ON' if rc['freeze_auth'] else 'off'}  "
+            f"LP locked: {rc['lp_locked'] if rc['lp_locked'] is not None else '?'}%  Top holder: {rc['top1']}%  "
+            f"Insiders: {rc['insider_pct']}%  Creator: {rc['creator_pct']}%")
     ok, why = holder_gate(out)
     if not ok:
         s -= 20

@@ -68,8 +68,10 @@ async def analysis_text(g, mint: str) -> str:
     text = g["fmt_analysis"](a)
     p = await auto.best_pair(g, mint)
     if p:
-        ok, why = evo.rug_ok({"holders": a.get("holders"), "top10": a.get("top10"),
-                              "danger": any("[danger]" in f for f in (a.get("flags") or []))}, p)
+        ra = {"holders": a.get("holders"), "top10": a.get("top10"),
+              "danger": any("[danger]" in f for f in (a.get("flags") or []))}
+        ra.update({k: v for k, v in (a.get("rc") or {}).items() if v is not None})
+        ok, why = evo.rug_ok(ra, p)
         text += "\n\nBot rug check: " + ("PASS" if ok else f"FAIL ({why})")
     return text
 
@@ -86,10 +88,13 @@ async def screen(g, S, key):
                     cur = f"{(float(p['priceUsd']) / pos['entry_price'] - 1) * 100:+.1f}%"
                 except Exception:
                     cur = "?"
+                if len(lines) >= 30:
+                    break
                 lines.append(f"{v['id']} {pos['name']}  {cur}  (TP {pos['tp']}% / SL {pos['sl']}% / "
                              f"trail {pos.get('trail', '-')}%{' ARMED' if pos.get('armed') else ''}, "
                              f"{(time.time() - pos['ts']) / 60:.0f}m of {pos['hold']}m)")
-        return "OPEN TRADES (paper)\n\n" + ("\n".join(lines) or "None open right now.")
+        total = sum(len(v["positions"]) for v in S["variants"].values())
+        return f"OPEN TRADES (paper): {total} open" + (" (showing 30)" if total > 30 else "") + "\n\n" + ("\n".join(lines) or "None open right now.")
     if key == "recent":
         rows = [(t["ts"], v["id"], t) for v in S["variants"].values() for t in v["closed"]]
         rows.sort(key=lambda r: r[0], reverse=True)
@@ -108,21 +113,26 @@ async def screen(g, S, key):
         best = sorted([v for v in S["variants"].values() if v["closed"] and v["status"] != "retired"],
                       key=evo.fitness, reverse=True)[:3]
         lines = [f"{v['id']}: {sum(1 for t in v['closed'] if t['win'])}/{len(v['closed'])} wins" for v in best]
-        return "CANDIDATES\n\nNo variant has passed 30 trades yet.\n\nClosest right now:\n" + ("\n".join(lines) or "none")
+        return "CANDIDATES\n\nNo variant has passed its checks yet.\n\nClosest right now:\n" + ("\n".join(lines) or "none")
     if key == "rules":
         return ("RULES (cannot be changed by the bot)\n\n"
                 "• Paper trading only\n"
                 f"• Rug check on every entry: {evo.HARD_MIN_HOLDERS}+ holders, top 10 under {evo.HARD_MAX_TOP10:.0f}%, "
-                f"liquidity ${evo.HARD_MIN_LIQ:,.0f}+, no RugCheck danger flags, sells must exist\n"
+                f"no wallet over {evo.HARD_MAX_TOP1:.0f}%, creator under {evo.HARD_MAX_CREATOR:.0f}%, insiders under "
+                f"{evo.HARD_MAX_INSIDER:.0f}%, mint + freeze authority revoked, LP {evo.MIN_LP_LOCKED:.0f}%+ locked, "
+                f"liquidity ${evo.HARD_MIN_LIQ:,.0f}+, no RugCheck danger flags, no heavy sell pressure, no falling knives, "
+                "no wash volume\n"
                 "• Nothing else is fixed: token age, momentum, volume are optional and evolved\n"
                 "• Finds coins from: newest pools (3 pages), new profiles, boosts, trending, top volume, "
                 "community takeovers and rotating keyword searches, Solana only\n"
-                f"• No minimum hold; max hold {evo.HARD_HOLD:.0f} min (each bot has its own, typically up to 15)\n"
+                f"• No minimum hold. Out by {evo.MAX_HOLD_FLAT:.0f} min unless in profit, then up to {evo.HARD_HOLD:.0f} min\n"
                 "• Take-profit 45%+ (aim 100%+), trailing stop from peak once past break-even\n"
                 f"• Above {evo.DISCRETION_PCT:.0f}% profit a bot decides its own exit at any time (pullback or momentum stall)\n"
                 f"• Rug exit if liquidity drops {evo.RUG_LIQ_DROP:.0%}+ or price crashes {evo.CRASH_TICK_PCT:.0f}%+ between checks\n"
-                f"• Retire a variant after {evo.EVAL_AFTER} trades if win rate < {evo.TARGET_WR:.0%} or PnL < 0\n"
-                f"• Survive {evo.GRAD_TRADES} trades, then {evo.VAL_TRADES} fresh validation trades\n"
+                f"• Requirements: win rate {evo.REQ_WR:.0%}+ and net profit\n"
+                f"• Checked after {evo.CHECK_1} trades and again at {evo.CHECK_2}: fail = retired, pass = breeds\n"
+                f"• Pass both = validation on {evo.VAL_TRADES} fresh trades, same requirements\n"
+                f"• Up to {evo.MAX_PER_TOKEN} bots in one token at a time\n"
                 "• Candidates are reported only; nothing goes live automatically")
     return menu_text(S)
 

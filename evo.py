@@ -17,7 +17,7 @@ all variants, plus jitter. Survivors graduate after EVO_GRAD_TRADES trades and m
 
 Paper only. Paper fills are optimistic, especially at launch: results will be worse live.
 """
-import json, math, os, random, time, logging
+import json, math, os, random, re, time, logging
 from collections import Counter
 from pathlib import Path
 
@@ -26,14 +26,18 @@ import auto
 log = logging.getLogger("evo")
 STATE = Path("evo_state.json")
 
-POP = int(os.getenv("EVO_POP", "22"))
-PROVEN_WR = float(os.getenv("EVO_PROVEN_WR", "0.8"))  # win rate (after EVAL_AFTER trades) that keeps a bot alive and lets it breed
-MAX_POP = int(os.getenv("EVO_MAX_POP", "30"))          # breeding may push the population above POP, never above this
+POP = int(os.getenv("EVO_POP", "100"))
+PROVEN_WR = float(os.getenv("EVO_PROVEN_WR", "0.8"))  # win rate that keeps a bot alive and lets it breed
+MAX_POP = int(os.getenv("EVO_MAX_POP", "130"))          # breeding may push the population above POP, never above this
 START_USD = float(os.getenv("EVO_START_USD", "10"))
 TARGET_WR = float(os.getenv("EVO_TARGET_WINRATE", "0.9"))
-EVAL_AFTER = int(os.getenv("EVO_EVAL_AFTER", "10"))
-GRAD_TRADES = int(os.getenv("EVO_GRAD_TRADES", "30"))
+REQ_WR = min(TARGET_WR, PROVEN_WR)  # win rate every check demands (lower either setting to relax it)
+CHECK_1 = int(os.getenv("EVO_CHECK_1", "5"))        # first profitability check (closed trades)
+EVAL_AFTER = CHECK_2 = int(os.getenv("EVO_CHECK_2", "10"))  # second check, same requirements; passing it graduates to validation
+MAX_PER_TOKEN = int(os.getenv("EVO_MAX_PER_TOKEN", "15"))   # max bots in one token at once (diversification, Notion load)
+KEEP_RETIRED = 150
 VAL_TRADES = int(os.getenv("EVO_VAL_TRADES", "30"))
+VAL_CHECK = int(os.getenv("EVO_VAL_CHECK", "5"))     # early check inside validation (same requirements)
 MAX_DD_PCT = float(os.getenv("EVO_MAX_DRAWDOWN_PCT", "30"))
 COST_PCT = float(os.getenv("EVO_COST_PCT", "2.5"))               # fees + slippage, round trip
 TARGET_USD = float(os.getenv("SCALP_TARGET_USD", "0.20"))        # min expected net profit per winning trade
@@ -44,8 +48,9 @@ CANDIDATE_LIMIT = int(os.getenv("EVO_CANDIDATE_LIMIT", "80"))
 COOLDOWN_MIN = 30
 ACACHE_TTL_MIN = 30
 
-# hold window: no minimum hold; never longer than HARD_HOLD
-HARD_HOLD = float(os.getenv("EVO_HARD_HOLD_MIN", "30"))
+# hold window: no minimum hold; out by MAX_HOLD_FLAT minutes unless in profit, then never longer than HARD_HOLD
+HARD_HOLD = float(os.getenv("EVO_HARD_HOLD_MIN", "30"))      # only for trades that are in profit
+MAX_HOLD_FLAT = float(os.getenv("EVO_MAX_HOLD_MIN", "5"))    # everything not in profit is out by here at the latest
 
 # rug-risk reasoning (hard rules; evolution can only make them stricter)
 HARD_MIN_HOLDERS = int(os.getenv("EVO_MIN_HOLDERS", "50"))
@@ -55,10 +60,14 @@ RUG_LIQ_DROP = float(os.getenv("EVO_RUG_LIQ_DROP_PCT", "30")) / 100   # liquidit
 CRASH_TICK_PCT = float(os.getenv("EVO_CRASH_TICK_PCT", "15"))         # price down this much between two checks
 RUG_EXIT_SLIP = float(os.getenv("EVO_RUG_EXIT_SLIP_PCT", "10"))       # paper penalty: you can't sell at the pre-rug price
 DISCRETION_PCT = float(os.getenv("EVO_DISCRETION_PCT", "10"))         # above this gross profit a bot may exit whenever it decides
+HARD_MAX_TOP1 = float(os.getenv("EVO_MAX_TOP1", "25"))              # biggest single (non-pool) holder
+HARD_MAX_INSIDER = float(os.getenv("EVO_MAX_INSIDER", "20"))        # insider-flagged wallets combined
+HARD_MAX_CREATOR = float(os.getenv("EVO_MAX_CREATOR", "15"))        # creator wallet
+MIN_LP_LOCKED = float(os.getenv("EVO_MIN_LP_LOCKED", "50"))         # % of LP locked/burned, when the data exists
 LAUNCH_SLIP = float(os.getenv("EVO_LAUNCH_SLIP_PCT", "3"))            # paper penalty on entries into pairs < 15 min old
 
 SCHEMA = 4  # bump to restart all variants from fresh seeds when the rules change
-BOUNDS = {"tp": (45, 300), "sl": (1.5, 8), "hold": (1, 15), "trail": (3, 30), "size_frac": (0.1, 0.5),
+BOUNDS = {"tp": (45, 300), "sl": (1.5, 8), "hold": (1, 5), "trail": (3, 30), "size_frac": (0.1, 0.5),
           "target_usd": (0.2, 1.5), "max_age_min": (3, 10080),
           "min_holders": (HARD_MIN_HOLDERS, 10000), "max_top10": (10, HARD_MAX_TOP10 - 1),
           "min_liq": (HARD_MIN_LIQ, 200000),
@@ -72,13 +81,13 @@ OPTIONAL = {"min_m5": (0.5, 3.0), "min_txns": (10, 100), "min_vol_h1": (5000, 10
 ANY_AGE = 10080  # max_age_min at this value = no age limit
 M5_OFF = 1000    # max_m5 at this value = no ceiling
 
-_BASE = {"tp": 100, "sl": 3, "hold": 15, "trail": 5, "size_frac": 0.25, "target_usd": 0.2, "max_age_min": 30,
+_BASE = {"tp": 100, "sl": 3, "hold": 5, "trail": 5, "size_frac": 0.25, "target_usd": 0.2, "max_age_min": 30,
          "min_holders": HARD_MIN_HOLDERS, "max_top10": HARD_MAX_TOP10 - 1, "min_liq": HARD_MIN_LIQ,
          "min_score": 0, "min_m5": 0, "max_m5": M5_OFF, "min_txns": 0, "min_vol_h1": 0,
          "lock_pull": 4.0, "stall": 8}
 SEEDS = [
     dict(_BASE),                                                                       # pure launch sniper, 5% trail from peak
-    dict(_BASE, max_age_min=120, tp=60, hold=12, trail=8),                             # slightly later entries
+    dict(_BASE, max_age_min=120, tp=60, hold=5, trail=8),                             # slightly later entries
     dict(_BASE, max_age_min=ANY_AGE, min_m5=1, min_txns=20, tp=80, trail=8),           # any age, rising only
     dict(_BASE, max_age_min=ANY_AGE, trail=12),                                        # any age, rug checks only
     dict(_BASE, max_age_min=15, min_holders=200, max_top10=50, min_liq=10000, tp=150, trail=15),  # careful launch
@@ -99,6 +108,10 @@ def load() -> dict:
 
 def save(S: dict):
     S["acache"] = dict(sorted(S["acache"].items(), key=lambda kv: kv[1]["ts"])[-150:])
+    retired = sorted((v for v in S["variants"].values() if v["status"] == "retired"), key=lambda x: x["created"])
+    for v in retired[:-KEEP_RETIRED]:  # keep the file small; remember how many were dropped
+        del S["variants"][v["id"]]
+        S["retired_dropped"] = S.get("retired_dropped", 0) + 1
     for v in S["variants"].values():
         if v["status"] == "retired" and len(v["closed"]) > 60:
             v["closed"] = v["closed"][-60:]
@@ -193,7 +206,7 @@ def mutate(parent: dict, S: dict):
         elif top == "trailing-stop":
             gn["trail"] = float(gn["trail"]) * 1.25
             notes.append("losses were trailing stops: looser trail")
-    if random.random() < 0.3:  # explore a bigger target; stop-loss stays, hold scales with it (clamped to 2-15)
+    if random.random() < 0.3:  # explore a bigger target; stop-loss stays, hold scales with it (clamped to 1-5)
         f = random.uniform(1.3, 2.0)
         gn["tp"] = float(gn["tp"]) * f
         gn["hold"] = float(gn["hold"]) * f ** 0.5
@@ -268,34 +281,57 @@ def judge(v: dict):
         return None
     validating = v["status"] == "validating"
     w = v["closed"][v["val_start"]:] if validating else v["closed"]
-    n, wins = len(w), sum(1 for t in w if t["win"])
-    pnl = sum(t["pnl_usd"] for t in w)
+    n = len(w)
     total = sum(t["pnl_usd"] for t in v["closed"])
     if total < -v["start_usd"] * MAX_DD_PCT / 100:
         return ("retire", f"drawdown {total:+.2f} USD")
-    if n >= EVAL_AFTER:
-        wr = wins / n
-        tag = " in validation (likely overfit)" if validating else ""
-        if wr < TARGET_WR and wr < PROVEN_WR:  # >= PROVEN_WR with positive net stays alive
-            return ("retire", f"win rate {wr:.0%} after {n} trades{tag}")
-        if pnl < 0:
-            return ("retire", f"win rate {wr:.0%} but net {pnl:+.2f} USD after {n} trades{tag}")
-    if not validating and n >= GRAD_TRADES:
+    if validating:
+        if n >= VAL_CHECK and not v.get("vchk"):
+            ok, why = meets(w)
+            if not ok:
+                return ("retire", f"{why} in validation (likely overfit)")
+            return ("vcheck", "")
+        if n >= VAL_TRADES:
+            ok, why = meets(w)
+            return ("validated", "") if ok else ("retire", f"{why} in validation (likely overfit)")
+        return None
+    chk = v.get("chk", 0)
+    if chk == 0 and n >= CHECK_1:           # check 1: after 5 trades
+        ok, why = meets(w)
+        if not ok:
+            return ("retire", f"failed {CHECK_1}-trade check: {why}")
+        if n < CHECK_2:
+            return ("check1", "")
+    if n >= CHECK_2:                         # check 2: after 10 trades, same requirements
+        ok, why = meets(w)
+        if not ok:
+            return ("retire", f"failed {CHECK_2}-trade check: {why}")
         return ("graduate", "")
-    if validating and n >= VAL_TRADES:
-        return ("validated", "")
     return None
 
 
+def meets(w: list) -> tuple[bool, str]:
+    """The profitability requirements: win rate >= REQ_WR and net PnL positive."""
+    n, wins = len(w), sum(1 for t in w if t["win"])
+    pnl = sum(t["pnl_usd"] for t in w)
+    wr = wins / n if n else 0
+    if wr < REQ_WR:
+        return False, f"win rate {wr:.0%} ({wins}/{n}), needs {REQ_WR:.0%}"
+    if pnl <= 0:
+        return False, f"win rate {wr:.0%} but net {pnl:+.2f} USD"
+    return True, ""
+
+
 def breed_proven(S, v, events):
-    """Win rate >= PROVEN_WR over >= EVAL_AFTER trades: stays alive and breeds a mutated child,
-    again at every further EVAL_AFTER closed trades while it holds that win rate."""
+    """Meets the requirements (win rate >= REQ_WR, net positive) after CHECK_1 trades: stays alive and breeds a
+    mutated child; again at CHECK_2 and then every further 10 closed trades while it keeps meeting them."""
     c = v["closed"]
-    n, wins = len(c), sum(1 for t in c if t["win"])
-    total = sum(t["pnl_usd"] for t in c)
-    if n < EVAL_AFTER or wins / n < PROVEN_WR or total <= 0:
+    n = len(c)
+    if n < CHECK_1 or not meets(c)[0]:
         return
-    level = n // EVAL_AFTER
+    wins = sum(1 for t in c if t["win"])
+    total = sum(t["pnl_usd"] for t in c)
+    level = (n >= CHECK_1) + (n >= CHECK_2) + max(0, (n - CHECK_2) // 10)
     v["proven"] = True
     while v.get("bred_lvl", 0) < level and v["status"] != "retired" and len(active(S)) < MAX_POP:
         v["bred_lvl"] = v.get("bred_lvl", 0) + 1
@@ -317,10 +353,15 @@ def apply_judgement(S, v, events):
         v["status"], v["reason"] = "retired", why
         events.append(f"RETIRED {v['id']} gen{v['gen']}: {why}")
         ensure_population(S, events)
+    elif kind == "check1":
+        v["chk"] = 1
+    elif kind == "vcheck":
+        v["vchk"] = True
     elif kind == "graduate":
+        v["chk"] = 2
         v["status"], v["val_start"] = "validating", len(v["closed"])
-        events.append(f"GRADUATED {v['id']}: {wins}/{n} wins, net {pnl:+.2f} USD. Now needs {VAL_TRADES} fresh "
-                      f"trades to validate (guards against luck).")
+        events.append(f"GRADUATED {v['id']}: passed the {CHECK_1}- and {CHECK_2}-trade checks ({wins}/{n} wins, "
+                      f"net {pnl:+.2f} USD). Now validating on {VAL_TRADES} fresh trades.")
     elif kind == "validated":
         v["status"] = "validated"
         events.append(f"VALIDATED CANDIDATE {v['id']} gen{v['gen']}: {wins}/{n} wins ({wins/n:.0%}), net {pnl:+.2f} USD, "
@@ -345,22 +386,65 @@ def pair_age_min(p: dict, now: float | None = None):
 
 
 def rug_ok(a: dict, p: dict) -> tuple[bool, str]:
-    """Can we reason that this is NOT a rug? Every check must pass. Missing data = can't reason = no trade."""
+    """Can we reason that this is NOT a rug? Every check must pass. Missing holder data = can't reason = no trade.
+    Checks (1) on-chain control (mint/freeze authority, transfer fee, LP lock), (2) who holds it (single wallet,
+    creator, insiders, top 10, holder count), (3) what the market is doing (sell pressure, falling knife, wash volume,
+    liquidity vs valuation, honeypot pattern). Extra RugCheck fields are only used when present."""
+    if a.get("rugged"):
+        return False, "RugCheck marks it rugged"
     if a.get("danger"):
         return False, "RugCheck danger-level risk"
     h, t = a.get("holders"), a.get("top10")
     if h is None or t is None:
         return False, "holder data unavailable"
+    # --- on-chain control
+    if a.get("mint_auth"):
+        return False, "mint authority not revoked (supply can be inflated)"
+    if a.get("freeze_auth"):
+        return False, "freeze authority not revoked (wallets can be frozen)"
+    if (a.get("fee_pct") or 0) > 2:
+        return False, f"transfer fee {a['fee_pct']}%"
+    for r in a.get("risks") or []:
+        if any(k in r for k in ("honeypot", "rugged", "copycat", "freeze", "mint authority", "creator history")):
+            return False, f"RugCheck risk: {r}"
+    dex = (p.get("dexId") or "").lower()
+    lp = a.get("lp_locked")
+    if lp is not None and dex not in ("pumpfun",) and lp < MIN_LP_LOCKED:
+        return False, f"only {lp:.0f}% of LP locked/burned"
+    # --- holders
     if h < HARD_MIN_HOLDERS:
         return False, f"only {h} holders"
     if t >= HARD_MAX_TOP10:
         return False, f"top 10 hold {t}%"
+    if a.get("top1") is not None and a["top1"] > HARD_MAX_TOP1:
+        return False, f"one wallet holds {a['top1']}%"
+    if (a.get("insider_pct") or 0) > HARD_MAX_INSIDER:
+        return False, f"insider wallets hold {a['insider_pct']}%"
+    if (a.get("creator_pct") or 0) > HARD_MAX_CREATOR:
+        return False, f"creator holds {a['creator_pct']}%"
+    # --- market behaviour
     liq = (p.get("liquidity") or {}).get("usd", 0) or 0
     if liq < HARD_MIN_LIQ:
         return False, f"liquidity ${liq:,.0f}"
-    tx = (p.get("txns") or {}).get("h1") or {}
-    if tx.get("buys", 0) >= 8 and tx.get("sells", 0) == 0:
+    fdv = p.get("fdv") or p.get("marketCap") or 0
+    if fdv and liq and fdv / liq > 300:
+        return False, f"valuation {fdv / liq:.0f}x liquidity (cannot exit size)"
+    tx = p.get("txns") or {}
+    h1, m5 = tx.get("h1") or {}, tx.get("m5") or {}
+    if h1.get("buys", 0) >= 8 and h1.get("sells", 0) == 0:
         return False, "buys but no sells (honeypot pattern)"
+    if m5.get("sells", 0) >= 10 and m5["sells"] > 3 * max(m5.get("buys", 0), 1):
+        return False, "heavy sell pressure (5m)"
+    if h1.get("sells", 0) >= 30 and h1["sells"] > 2 * max(h1.get("buys", 0), 1):
+        return False, "heavy sell pressure (1h)"
+    ch = p.get("priceChange") or {}
+    if (ch.get("m5") or 0) <= -12:
+        return False, f"price already falling ({ch['m5']}% in 5m)"
+    if (ch.get("h1") or 0) <= -40:
+        return False, f"price already dumped ({ch['h1']}% in 1h)"
+    vol_h1 = (p.get("volume") or {}).get("h1", 0) or 0
+    if liq and vol_h1 / liq > 100:
+        return False, "volume/liquidity absurdly high (wash trading)"
     return True, ""
 
 
@@ -425,7 +509,7 @@ def decide_exit(pos: dict, price: float, liq: float, now: float) -> str | None:
         return "take-profit"
     if pos.get("armed") and gross <= max(floor, trail_gross):
         return "trailing-stop"
-    cap = HARD_HOLD if in_profit else min(pos["hold"], HARD_HOLD)
+    cap = HARD_HOLD if in_profit else min(pos["hold"], MAX_HOLD_FLAT)  # 5 min unless in profit (then up to 30)
     if age_min >= cap:
         return "max hold time"
     return None
@@ -433,6 +517,8 @@ def decide_exit(pos: dict, price: float, liq: float, now: float) -> str | None:
 
 # ---------- jobs ----------
 async def monitor(g, S, pc, events, notes_out):
+    n_open = sum(len(v["positions"]) for v in S["variants"].values())
+    patch_every = max(60, n_open * 0.8)  # keep Notion under its rate limit when many bots are open
     for v in list(S["variants"].values()):
         if v["status"] == "retired":
             continue
@@ -448,7 +534,7 @@ async def monitor(g, S, pc, events, notes_out):
                 why = decide_exit(pos, price, liq, now)
 
                 if not why:
-                    if now - pos.get("last_patch", 0) >= 60:  # keep Notion calls light
+                    if now - pos.get("last_patch", 0) >= patch_every:  # keep Notion calls light
                         pos["last_patch"] = now
                         val = pos["size_tokens"] * price
                         await auto.n_patch(g, pos.get("page_id"), {"properties": {
@@ -536,6 +622,10 @@ async def scan(g, S, pc, events):
                 continue
             a = {k: full.get(k) for k in ("score", "liq", "holders", "top10", "symbol")}
             a["danger"] = any("[danger]" in f for f in (full.get("flags") or []))
+            rc = full.get("rc") or {}
+            for k in ("mint_auth", "freeze_auth", "rugged", "top1", "insider_pct", "creator_pct", "lp_locked", "fee_pct", "risks"):
+                if rc.get(k) is not None:
+                    a[k] = rc[k]
             ts_cache = now
             if a["holders"] is None or a["top10"] is None:
                 ts_cache = now - (ACACHE_TTL_MIN * 60 - 120)  # brand-new token, data not ready: retry in ~2 min
@@ -544,13 +634,25 @@ async def scan(g, S, pc, events):
         ok, why = rug_ok(a, p)
         if not ok:
             log.info("skip %s: %s", mint, why)
+            rs = S.setdefault("rejects", {})
+            key = re.sub(r"[\d.]+", "#", why)[:48]
+            rs[key] = rs.get(key, 0) + 1
+            if len(rs) > 40:
+                for k in sorted(rs, key=rs.get)[:10]:
+                    del rs[k]
+            continue
+        slots = MAX_PER_TOKEN - sum(1 for vv in S["variants"].values() if mint in vv["positions"])
+        if slots <= 0:
             continue
 
         price = float(p["priceUsd"])
         liq = float((p.get("liquidity") or {}).get("usd", 0))
         slip = LAUNCH_SLIP if (age is not None and age < 15) else 0.0
         fill = price * (1 + slip / 100)
+        random.shuffle(wanting)
         for v in wanting:
+            if slots <= 0:
+                break
             gn = v["genome"]
             if a["holders"] < gn["min_holders"] or a["top10"] > gn["max_top10"] or (a["score"] or 0) < gn["min_score"]:
                 continue
@@ -585,31 +687,49 @@ async def scan(g, S, pc, events):
                                     "feat": features(p, a, age), "peak_price": fill, "last_price": price}
             v["cooldown"][mint] = ts
             free.remove(v)
+            slots -= 1
             if NOTIFY_TRADES:
                 events.append(f"[{v['id']}] opened {name} ~${size_usd:.2f}")
 
 
 # ---------- reporting ----------
 def leaderboard(S) -> str:
+    live = [v for v in S["variants"].values() if v["status"] != "retired"]
+    live.sort(key=lambda x: -fitness(x))
     rows = []
-    for v in sorted(S["variants"].values(), key=lambda x: (x["status"] == "retired", -fitness(x))):
-        if v["status"] == "retired":
-            continue
+    for v in live[:25]:
         c = v["closed"]
         n, w = len(c), sum(1 for t in c if t["win"])
         wr = f"{w/n:.0%}" if n else "-"
-        rows.append(f"{v['id']} g{v['gen']} {v['status']}: {w}/{n} ({wr}), {sum(t['pnl_usd'] for t in c):+.2f} USD"
+        rows.append(f"{v['id']} g{v['gen']} {v['status'][:4]}: {w}/{n} ({wr}), {sum(t['pnl_usd'] for t in c):+.2f} USD"
                     f"{', OPEN' if v['positions'] else ''}")
-    retired = sum(1 for v in S["variants"].values() if v["status"] == "retired")
+    by = Counter(v["status"] for v in live)
+    retired = sum(1 for v in S["variants"].values() if v["status"] == "retired") + S.get("retired_dropped", 0)
     validated = [v["id"] for v in S["variants"].values() if v["status"] == "validated"]
-    return ("EVO " + ("HALTED" if S["halted"] else "running") + " (paper)\n" + "\n".join(rows or ["no active variants"])
-            + f"\nRetired so far: {retired}\nValidated candidates: {', '.join(validated) or 'none yet'}")
+    traded = sum(1 for v in live if v["closed"])
+    head = (f"EVO {'HALTED' if S['halted'] else 'running'} (paper)  {len(live)} bots: {by.get('testing', 0)} testing, "
+            f"{by.get('validating', 0)} validating, {by.get('validated', 0)} validated; {traded} have traded\n"
+            f"Top 25 of {len(live)}:\n")
+    rj = sorted(S.get("rejects", {}).items(), key=lambda kv: -kv[1])[:5]
+    why = ("\nTop reasons tokens were rejected: " + "; ".join(f"{k} x{n}" for k, n in rj)) if rj else ""
+    return (head + "\n".join(rows or ["no active variants"]) + f"\nRetired so far: {retired}"
+            f"\nValidated candidates: {', '.join(validated) or 'none yet'}" + why)
 
 
 async def flush(tb, g, events):
+    """Send events in as few Telegram messages as possible (100 bots would otherwise flood the chat)."""
+    chunks, cur = [], ""
     for e in events:
+        e = e[:1500]
+        if cur and len(cur) + len(e) + 2 > 3500:
+            chunks.append(cur)
+            cur = ""
+        cur += ("\n\n" if cur else "") + e
+    if cur:
+        chunks.append(cur)
+    for c in chunks[:6]:
         try:
-            await tb.send_message(g["OWNER_ID"], e[:3500])
+            await tb.send_message(g["OWNER_ID"], c)
         except Exception as ex:
             log.warning("notify failed: %s", ex)
     events.clear()
