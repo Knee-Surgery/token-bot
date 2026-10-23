@@ -4357,28 +4357,6 @@
     "danger": false
    }
   },
-  "FiYTnrwt6CPmWQyWY4evBLK5Lu21jJSRHPYtX4Aepump": {
-   "ts": 1792733350.8466828,
-   "a": {
-    "score": 15,
-    "liq": 38928.8,
-    "holders": 3107,
-    "top10": 14.3,
-    "symbol": "MEOWE",
-    "danger": false
-   }
-  },
-  "2hPYWv4SydoBYmiecpqVi1AdTDSM4xeHbKeBDBQMpump": {
-   "ts": 1792742572.1021113,
-   "a": {
-    "score": 25,
-    "liq": 30873.69,
-    "holders": 2665,
-    "top10": 13.57,
-    "symbol": "zonki",
-    "danger": false
-   }
-  },
   "CSocnzcRpgSCr1naKcNTieWZUxb6rABe45j844m7pump": {
    "ts": 1792742660.7986884,
    "a": {
@@ -4585,6 +4563,61 @@
     "holders": 194,
     "top10": 13.88,
     "symbol": "GTA6 Coin",
+    "danger": true
+   }
+  },
+  "FiYTnrwt6CPmWQyWY4evBLK5Lu21jJSRHPYtX4Aepump": {
+   "ts": 1792744140.1187525,
+   "a": {
+    "score": 25,
+    "liq": 28045.78,
+    "holders": 3455,
+    "top10": 15.52,
+    "symbol": "MEOWE",
+    "danger": false
+   }
+  },
+  "PDQAy9cgdbw9VVbBKt1QY5pczEdKo8gmbaXnju9pump": {
+   "ts": 1792744152.1772263,
+   "a": {
+    "score": 0,
+    "liq": 48989.83,
+    "holders": 690,
+    "top10": 92.92,
+    "symbol": "DeepSeek",
+    "danger": true
+   }
+  },
+  "4xSiAf59ns4cE7pqAKrH9CrgRxReSViTFDjgmDbehMxN": {
+   "ts": 1792744265.3317568,
+   "a": {
+    "score": 10,
+    "liq": 21315.97,
+    "holders": 322,
+    "top10": 8.24,
+    "symbol": "Kimchi",
+    "danger": true
+   }
+  },
+  "2hPYWv4SydoBYmiecpqVi1AdTDSM4xeHbKeBDBQMpump": {
+   "ts": 1792744380.3165221,
+   "a": {
+    "score": 25,
+    "liq": 29248.92,
+    "holders": 2689,
+    "top10": 15.4,
+    "symbol": "zonki",
+    "danger": false
+   }
+  },
+  "4xeGiS5ZfEb2ubjGc2GvVyhZjSnyabKj6pP1qusomoon": {
+   "ts": 1792744392.4235656,
+   "a": {
+    "score": 5,
+    "liq": 131214.54,
+    "holders": 116,
+    "top10": 4.27,
+    "symbol": "CLDSHLD",
     "danger": true
    }
   }
