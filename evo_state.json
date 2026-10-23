@@ -1550,42 +1550,11 @@
     "jitter size_frac",
     "jitter min_txns"
    ],
-   "status": "testing",
-   "reason": "",
-   "paper_usd": 7.261028440806995,
+   "status": "retired",
+   "reason": "drawdown -4.11 USD",
+   "paper_usd": 5.888035112320298,
    "start_usd": 10.0,
-   "positions": {
-    "FPmD41CzoS2oa74EsL9z3AeDRMDFpXA9mJMcABgupump": {
-     "name": "COINSIDE",
-     "entry_price": 8.683e-05,
-     "entry_liq": 25071.86,
-     "ts": 1792708638.5677834,
-     "cost_usd": 1.4522056881613992,
-     "size_tokens": 16724.699852140955,
-     "score": 10,
-     "holders": 551,
-     "top10": 25.01,
-     "tp": 80.0,
-     "sl": 3.0,
-     "hold": 15,
-     "trail": 10.0,
-     "page_id": "40193233-c104-81bc-b102-f2eff1ed6fa1",
-     "feat": {
-      "m5": 84.71,
-      "h1": 91.46,
-      "liq": 25071.86,
-      "vol_h1": 130378.37,
-      "txns": 1101,
-      "holders": 551,
-      "top10": 25.01,
-      "score": 10,
-      "age": 19.171952848307292
-     },
-     "peak_price": 8.683e-05,
-     "last_price": 8.683e-05,
-     "last_patch": 1792708652.703982
-    }
-   },
+   "positions": {},
    "closed": [
     {
      "mint": "fUkSnEAsbNW9pkZRFoNnCYPFRzbDuE62kK6VLdvTmZi",
@@ -1699,6 +1668,25 @@
       "top10": 13.87,
       "score": 0,
       "age": 1.1318817138671875
+     }
+    },
+    {
+     "mint": "FPmD41CzoS2oa74EsL9z3AeDRMDFpXA9mJMcABgupump",
+     "pnl_pct": -94.54537602211217,
+     "pnl_usd": -1.3729933284866964,
+     "win": false,
+     "why": "liquidity collapse",
+     "ts": 1792716780.9434135,
+     "feat": {
+      "m5": 84.71,
+      "h1": 91.46,
+      "liq": 25071.86,
+      "vol_h1": 130378.37,
+      "txns": 1101,
+      "holders": 551,
+      "top10": 25.01,
+      "score": 10,
+      "age": 19.171952848307292
      }
     }
    ],
@@ -1864,24 +1852,49 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 13.300200486026732,
    "start_usd": 10.0,
    "positions": {
-    "HKh5uh37FyRhRbDPcmPCoTcfByRLdY65RFZj9AvZpump": {
-     "name": "BTC",
-     "entry_price": 0.0003292,
-     "entry_liq": 49777.0,
-     "ts": 1792708639.9425478,
-     "cost_usd": 1.7999999999999998,
-     "size_tokens": 5467.800729040097,
-     "score": 10,
-     "holders": 5825,
-     "top10": 3.1,
+    "BbaZXnPRUWYfvuhNWwK25vzhWd5PRwDJ5N47nJtgpump": {
+     "name": "KIMCHINU",
+     "entry_price": 0.001184,
+     "entry_liq": 95946.99,
+     "ts": 1792716786.8841374,
+     "cost_usd": 2.3940360874848117,
+     "size_tokens": 2021.989938754064,
+     "score": 15,
+     "holders": 4477,
+     "top10": 1.65,
      "tp": 201.22,
      "sl": 7.19,
      "hold": 12,
      "trail": 3.09,
-     "page_id": "40193233-c104-8104-8ef7-f8eebf56037c",
+     "page_id": "40293233-c104-8146-9a17-c54de71bf8fd",
+     "feat": {
+      "m5": 15.26,
+      "h1": 134,
+      "liq": 95946.99,
+      "vol_h1": 592370.57,
+      "txns": 1063,
+      "holders": 4477,
+      "top10": 1.65,
+      "score": 15,
+      "age": 98.91527093098958
+     },
+     "peak_price": 0.001392,
+     "last_price": 0.001392,
+     "last_patch": 1792717065.6995146,
+     "armed": true
+    }
+   },
+   "closed": [
+    {
+     "mint": "HKh5uh37FyRhRbDPcmPCoTcfByRLdY65RFZj9AvZpump",
+     "pnl_pct": 183.3444714459295,
+     "pnl_usd": 3.300200486026731,
+     "win": true,
+     "why": "max hold time",
+     "ts": 1792716781.9911122,
      "feat": {
       "m5": 4.58,
       "h1": -33.45,
@@ -1892,16 +1905,12 @@
       "top10": 3.1,
       "score": 10,
       "age": 117.38861951497395
-     },
-     "peak_price": 0.0003552,
-     "last_price": 0.0003552,
-     "armed": true,
-     "last_patch": 1792708652.9835665
+     }
     }
-   },
-   "closed": [],
+   ],
    "cooldown": {
-    "HKh5uh37FyRhRbDPcmPCoTcfByRLdY65RFZj9AvZpump": 1792708639.9425478
+    "HKh5uh37FyRhRbDPcmPCoTcfByRLdY65RFZj9AvZpump": 1792708639.9425478,
+    "BbaZXnPRUWYfvuhNWwK25vzhWd5PRwDJ5N47nJtgpump": 1792716786.8841374
    },
    "created": 1792708635.0264883,
    "val_start": 0
@@ -1939,24 +1948,48 @@
    ],
    "status": "testing",
    "reason": "",
-   "paper_usd": 10.0,
+   "paper_usd": 7.095404892572289,
    "start_usd": 10.0,
    "positions": {
-    "FPmD41CzoS2oa74EsL9z3AeDRMDFpXA9mJMcABgupump": {
-     "name": "COINSIDE",
-     "entry_price": 8.683e-05,
-     "entry_liq": 25071.86,
-     "ts": 1792708637.9966316,
-     "cost_usd": 2.5,
-     "size_tokens": 28791.892203155592,
-     "score": 10,
-     "holders": 551,
-     "top10": 25.01,
+    "HqaUT1abZq6WkeRpCYD7yHNdcxgu6biXejNkeJUNpump": {
+     "name": "VIRTUAL",
+     "entry_price": 0.0002857,
+     "entry_liq": 45409.97,
+     "ts": 1792716924.537629,
+     "cost_usd": 1.7738512231430723,
+     "size_tokens": 6208.789720486778,
+     "score": 20,
+     "holders": 2061,
+     "top10": 13.98,
      "tp": 80.0,
      "sl": 3.0,
      "hold": 15,
      "trail": 10.59,
-     "page_id": "40193233-c104-81cb-8c20-fec9a59b9737",
+     "page_id": "40293233-c104-81eb-805a-ff23f273a6d4",
+     "feat": {
+      "m5": 3.57,
+      "h1": 21.53,
+      "liq": 45409.97,
+      "vol_h1": 44993.35,
+      "txns": 83,
+      "holders": 2061,
+      "top10": 13.98,
+      "score": 20,
+      "age": 547.1941168701172
+     },
+     "peak_price": 0.000288,
+     "last_price": 0.000288,
+     "last_patch": 1792717066.0496478
+    }
+   },
+   "closed": [
+    {
+     "mint": "FPmD41CzoS2oa74EsL9z3AeDRMDFpXA9mJMcABgupump",
+     "pnl_pct": -94.54537602211217,
+     "pnl_usd": -2.363634400552804,
+     "win": false,
+     "why": "liquidity collapse",
+     "ts": 1792716783.669999,
      "feat": {
       "m5": 84.71,
       "h1": 91.46,
@@ -1967,21 +2000,112 @@
       "top10": 25.01,
       "score": 10,
       "age": 19.171952848307292
-     },
-     "peak_price": 8.683e-05,
-     "last_price": 8.683e-05,
-     "last_patch": 1792708653.2403314
+     }
+    },
+    {
+     "mint": "BbaZXnPRUWYfvuhNWwK25vzhWd5PRwDJ5N47nJtgpump",
+     "pnl_pct": -8.074324324324309,
+     "pnl_usd": -0.15414623127262467,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792716822.3689601,
+     "feat": {
+      "m5": 15.26,
+      "h1": 134,
+      "liq": 95946.99,
+      "vol_h1": 592370.57,
+      "txns": 1063,
+      "holders": 4477,
+      "top10": 1.65,
+      "score": 15,
+      "age": 98.91527093098958
+     }
+    },
+    {
+     "mint": "HKh5uh37FyRhRbDPcmPCoTcfByRLdY65RFZj9AvZpump",
+     "pnl_pct": -14.803149606299213,
+     "pnl_usd": -0.2769010317355944,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792716888.768149,
+     "feat": {
+      "m5": 5.93,
+      "h1": 10.57,
+      "liq": 87167.64,
+      "vol_h1": 380828.32,
+      "txns": 1252,
+      "holders": 5958,
+      "top10": 2.82,
+      "score": 10,
+      "age": 253.9937267537435
+     }
+    },
+    {
+     "mint": "9d2VBdsrZLi1LiQfvr13V9R5vJ83PvirBrFBiDSppump",
+     "pnl_pct": -6.10179529811081,
+     "pnl_usd": -0.10991344386668737,
+     "win": false,
+     "why": "stop-loss",
+     "ts": 1792716912.244498,
+     "feat": {
+      "m5": 19.85,
+      "h1": 945,
+      "liq": 55633.43,
+      "vol_h1": 25393.4,
+      "txns": 2741,
+      "holders": 2107,
+      "top10": 13.92,
+      "score": 20,
+      "age": 6.333843176269531
+     }
     }
-   },
-   "closed": [],
+   ],
    "cooldown": {
-    "FPmD41CzoS2oa74EsL9z3AeDRMDFpXA9mJMcABgupump": 1792708637.9966316
+    "FPmD41CzoS2oa74EsL9z3AeDRMDFpXA9mJMcABgupump": 1792708637.9966316,
+    "BbaZXnPRUWYfvuhNWwK25vzhWd5PRwDJ5N47nJtgpump": 1792716785.965653,
+    "HKh5uh37FyRhRbDPcmPCoTcfByRLdY65RFZj9AvZpump": 1792716834.5426552,
+    "9d2VBdsrZLi1LiQfvr13V9R5vJ83PvirBrFBiDSppump": 1792716901.0373209,
+    "HqaUT1abZq6WkeRpCYD7yHNdcxgu6biXejNkeJUNpump": 1792716924.537629
    },
    "created": 1792708637.317143,
    "val_start": 0
+  },
+  "v17": {
+   "id": "v17",
+   "gen": 0,
+   "parent": null,
+   "genome": {
+    "tp": 64.29,
+    "sl": 2.8,
+    "hold": 9,
+    "trail": 25.44,
+    "size_frac": 0.41,
+    "target_usd": 0.43,
+    "max_age_min": 4,
+    "min_holders": 68,
+    "max_top10": 10.49,
+    "min_liq": 45180.17,
+    "min_score": 0,
+    "min_m5": 0,
+    "max_m5": 22.83,
+    "min_txns": 0,
+    "min_vol_h1": 12144.4
+   },
+   "notes": [
+    "random exploration"
+   ],
+   "status": "testing",
+   "reason": "",
+   "paper_usd": 10.0,
+   "start_usd": 10.0,
+   "positions": {},
+   "closed": [],
+   "cooldown": {},
+   "created": 1792716781.941333,
+   "val_start": 0
   }
  },
- "next_id": 17,
+ "next_id": 18,
  "acache": {
   "GNE7e774tkGyxMMzP36ofhNuRrUZ15H4e1LE1xekpump": {
    "ts": 1792693862.7773151,
@@ -2058,17 +2182,6 @@
     "top10": 78.44,
     "symbol": "Kimchi",
     "danger": true
-   }
-  },
-  "HqaUT1abZq6WkeRpCYD7yHNdcxgu6biXejNkeJUNpump": {
-   "ts": 1792694091.6567676,
-   "a": {
-    "score": 20,
-    "liq": 45844.36,
-    "holders": 847,
-    "top10": 13.5,
-    "symbol": "VIRTUAL",
-    "danger": false
    }
   },
   "2GXQr5HdsnJMruwBnNtBxhN8a6Jmi8FtV22x7ooVpump": {
@@ -2544,17 +2657,6 @@
     "danger": false
    }
   },
-  "HKh5uh37FyRhRbDPcmPCoTcfByRLdY65RFZj9AvZpump": {
-   "ts": 1792708637.3171709,
-   "a": {
-    "score": 10,
-    "liq": 50458.27,
-    "holders": 5825,
-    "top10": 3.1,
-    "symbol": "BTC",
-    "danger": false
-   }
-  },
   "J35oV5uDsTHDu3oANqtxxxYS9ugvipRXqBFm1oERZss2": {
    "ts": 1792708637.3171709,
    "a": {
@@ -2575,6 +2677,72 @@
     "top10": 16.45,
     "symbol": "INCOGNITO",
     "danger": false
+   }
+  },
+  "BbaZXnPRUWYfvuhNWwK25vzhWd5PRwDJ5N47nJtgpump": {
+   "ts": 1792716784.916256,
+   "a": {
+    "score": 15,
+    "liq": 96473.67,
+    "holders": 4477,
+    "top10": 1.65,
+    "symbol": "KIMCHINU",
+    "danger": false
+   }
+  },
+  "FeGEZN9KWA7stty8mzFXVmNqnTAgKmcs2phPdqjcpump": {
+   "ts": 1792716809.6502352,
+   "a": {
+    "score": 0,
+    "liq": 635721.3,
+    "holders": 1111,
+    "top10": 90.88,
+    "symbol": "AOP",
+    "danger": true
+   }
+  },
+  "HKh5uh37FyRhRbDPcmPCoTcfByRLdY65RFZj9AvZpump": {
+   "ts": 1792716833.6236053,
+   "a": {
+    "score": 10,
+    "liq": 87167.64,
+    "holders": 5958,
+    "top10": 2.82,
+    "symbol": "BTC",
+    "danger": false
+   }
+  },
+  "9d2VBdsrZLi1LiQfvr13V9R5vJ83PvirBrFBiDSppump": {
+   "ts": 1792716900.0305905,
+   "a": {
+    "score": 20,
+    "liq": 55090.62,
+    "holders": 2107,
+    "top10": 13.92,
+    "symbol": "Rockstar",
+    "danger": false
+   }
+  },
+  "HqaUT1abZq6WkeRpCYD7yHNdcxgu6biXejNkeJUNpump": {
+   "ts": 1792716923.6470122,
+   "a": {
+    "score": 20,
+    "liq": 44898.72,
+    "holders": 2061,
+    "top10": 13.98,
+    "symbol": "VIRTUAL",
+    "danger": false
+   }
+  },
+  "2whREddmnN5sMiqDzvs6ZXmL3YLPi3Sn9wS2Yahabonk": {
+   "ts": 1792717054.252942,
+   "a": {
+    "score": 10,
+    "liq": 131914.41,
+    "holders": 147,
+    "top10": 9.22,
+    "symbol": "Moahook",
+    "danger": true
    }
   }
  },
