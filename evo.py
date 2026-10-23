@@ -3,9 +3,10 @@ Evolutionary paper-trading engine: early momentum, rug-risk reasoning, trailing 
 
 ENTRY: no fixed strategy filters. A token is only bought if it passes the RUG-RISK REASONING below
 (at least EVO_MIN_AGE_MIN old, holders >= 50, top-10 holders < 80%, liquidity floor, no RugCheck danger flags,
-sells actually happening). Brand-new launches are skipped: in paper trading they produced most of the losses
-(rugs and liquidity pulls in the first minutes). Everything else (max token age, momentum, volume, score, stricter
-holder limits) is an OPTIONAL gene: off by default, switched on or tuned by evolution only if it improves results.
+sells actually happening). Young tokens are skipped: in paper trading, pairs under 4 hours old produced
+essentially all of the losses (rugs, liquidity pulls and pump-and-dumps in the first hours). Everything else
+(max token age, momentum, volume, score, stricter holder limits) is an OPTIONAL gene: off by default,
+switched on or tuned by evolution only if it improves results.
 
 EXIT (per variant genes): stop-loss, take-profit (45%+, aiming for 100%+), a trailing stop measured from the
 token's peak price since entry (armed once the trade is past break-even), a time cap (2 to 30 minutes), and
@@ -58,7 +59,9 @@ HARD_HOLD = float(os.getenv("EVO_HARD_HOLD_MIN", "30"))      # only for trades t
 MAX_HOLD_FLAT = float(os.getenv("EVO_MAX_HOLD_MIN", "5"))    # everything not in profit is out by here at the latest
 
 # rug-risk reasoning (hard rules; evolution can only make them stricter)
-HARD_MIN_AGE = float(os.getenv("EVO_MIN_AGE_MIN", "15"))          # pair must be at least this old (minutes)
+# pair must be at least this old (minutes). 4 h: across 61 tokens, entries into pairs under 4 h lost $237 of the
+# $235 total; 4 h-1 day was about flat and over 1 day slightly positive (paper data to 2026-10-23)
+HARD_MIN_AGE = float(os.getenv("EVO_MIN_AGE_MIN", "240"))
 HARD_MIN_HOLDERS = int(os.getenv("EVO_MIN_HOLDERS", "50"))
 HARD_MAX_TOP10 = float(os.getenv("EVO_MAX_TOP10", "80"))         # top 10 must be strictly below this
 HARD_MIN_LIQ = float(os.getenv("EVO_MIN_LIQ", "5000"))
