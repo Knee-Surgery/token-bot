@@ -44,8 +44,7 @@ CANDIDATE_LIMIT = int(os.getenv("EVO_CANDIDATE_LIMIT", "80"))
 COOLDOWN_MIN = 30
 ACACHE_TTL_MIN = 30
 
-# hold window: never shorter than MIN_HOLD (except emergency exits), never longer than HARD_HOLD
-MIN_HOLD = float(os.getenv("EVO_MIN_HOLD_MIN", "2"))
+# hold window: no minimum hold; never longer than HARD_HOLD
 HARD_HOLD = float(os.getenv("EVO_HARD_HOLD_MIN", "30"))
 
 # rug-risk reasoning (hard rules; evolution can only make them stricter)
@@ -55,16 +54,19 @@ HARD_MIN_LIQ = float(os.getenv("EVO_MIN_LIQ", "5000"))
 RUG_LIQ_DROP = float(os.getenv("EVO_RUG_LIQ_DROP_PCT", "30")) / 100   # liquidity down this much vs entry = rug exit
 CRASH_TICK_PCT = float(os.getenv("EVO_CRASH_TICK_PCT", "15"))         # price down this much between two checks
 RUG_EXIT_SLIP = float(os.getenv("EVO_RUG_EXIT_SLIP_PCT", "10"))       # paper penalty: you can't sell at the pre-rug price
+DISCRETION_PCT = float(os.getenv("EVO_DISCRETION_PCT", "10"))         # above this gross profit a bot may exit whenever it decides
 LAUNCH_SLIP = float(os.getenv("EVO_LAUNCH_SLIP_PCT", "3"))            # paper penalty on entries into pairs < 15 min old
 
 SCHEMA = 4  # bump to restart all variants from fresh seeds when the rules change
-BOUNDS = {"tp": (45, 300), "sl": (1.5, 8), "hold": (2, 15), "trail": (3, 30), "size_frac": (0.1, 0.5),
+BOUNDS = {"tp": (45, 300), "sl": (1.5, 8), "hold": (1, 15), "trail": (3, 30), "size_frac": (0.1, 0.5),
           "target_usd": (0.2, 1.5), "max_age_min": (3, 10080),
           "min_holders": (HARD_MIN_HOLDERS, 10000), "max_top10": (10, HARD_MAX_TOP10 - 1),
           "min_liq": (HARD_MIN_LIQ, 200000),
           "min_score": (0, 90), "min_m5": (0, 3), "max_m5": (3, 1000), "min_txns": (0, 200),
-          "min_vol_h1": (0, 500000)}
-INTS = {"hold", "min_score", "min_txns", "min_holders", "max_age_min"}
+          "min_vol_h1": (0, 500000),
+          "lock_pull": (0.5, 15), "stall": (2, 30)}  # discretionary exit genes (used once profit > DISCRETION_PCT)
+GENE_DEFAULT = {"lock_pull": 4.0, "stall": 8}
+INTS = {"stall", "hold", "min_score", "min_txns", "min_holders", "max_age_min"}
 LOG_KEYS = {"tp", "target_usd", "max_age_min", "min_holders", "min_liq"}
 OPTIONAL = {"min_m5": (0.5, 3.0), "min_txns": (10, 100), "min_vol_h1": (5000, 100000), "min_score": (50, 80)}  # 0 = off
 ANY_AGE = 10080  # max_age_min at this value = no age limit
@@ -72,7 +74,8 @@ M5_OFF = 1000    # max_m5 at this value = no ceiling
 
 _BASE = {"tp": 100, "sl": 3, "hold": 15, "trail": 5, "size_frac": 0.25, "target_usd": 0.2, "max_age_min": 30,
          "min_holders": HARD_MIN_HOLDERS, "max_top10": HARD_MAX_TOP10 - 1, "min_liq": HARD_MIN_LIQ,
-         "min_score": 0, "min_m5": 0, "max_m5": M5_OFF, "min_txns": 0, "min_vol_h1": 0}
+         "min_score": 0, "min_m5": 0, "max_m5": M5_OFF, "min_txns": 0, "min_vol_h1": 0,
+         "lock_pull": 4.0, "stall": 8}
 SEEDS = [
     dict(_BASE),                                                                       # pure launch sniper, 5% trail from peak
     dict(_BASE, max_age_min=120, tp=60, hold=12, trail=8),                             # slightly later entries
@@ -107,7 +110,8 @@ def save(S: dict):
 def clamp(gn: dict) -> dict:
     out = {}
     for k, (lo, hi) in BOUNDS.items():
-        x = min(hi, max(lo, float(gn.get(k, lo if k not in ("max_m5", "max_age_min") else hi))))
+        dflt = GENE_DEFAULT.get(k, lo if k not in ("max_m5", "max_age_min") else hi)
+        x = min(hi, max(lo, float(gn.get(k, dflt))))
         out[k] = int(round(x)) if k in INTS else round(x, 2)
     out["sl"] = min(out["sl"], round(1.5 * out["tp"], 2))
     if out["max_m5"] < out["min_m5"] + 1:
@@ -409,8 +413,14 @@ def decide_exit(pos: dict, price: float, liq: float, now: float) -> str | None:
         return "crash exit"
     if gross <= -pos["sl"]:
         return "stop-loss"
-    if age_min < MIN_HOLD:
-        return None
+    # discretion: once clearly in profit the bot decides for itself when to leave
+    if prev > 0:
+        pos["down_ticks"] = pos.get("down_ticks", 0) + 1 if price < prev else (0 if price > prev else pos.get("down_ticks", 0))
+    if gross >= DISCRETION_PCT:
+        if (1 - price / pos["peak_price"]) * 100 >= pos.get("lock_pull", GENE_DEFAULT["lock_pull"]):
+            return "profit lock (pullback)"
+        if pos.get("down_ticks", 0) >= pos.get("stall", GENE_DEFAULT["stall"]):
+            return "profit lock (momentum stall)"
     if gross >= pos["tp"]:
         return "take-profit"
     if pos.get("armed") and gross <= max(floor, trail_gross):
@@ -571,6 +581,7 @@ async def scan(g, S, pc, events):
                                     "cost_usd": size_usd, "size_tokens": size_tokens, "score": a["score"],
                                     "holders": a["holders"], "top10": a["top10"], "tp": gn["tp"], "sl": gn["sl"],
                                     "hold": gn["hold"], "trail": gn["trail"], "page_id": page_id,
+                                    "lock_pull": gn["lock_pull"], "stall": gn["stall"],
                                     "feat": features(p, a, age), "peak_price": fill, "last_price": price}
             v["cooldown"][mint] = ts
             free.remove(v)
