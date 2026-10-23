@@ -32,14 +32,15 @@ STATE = Path("evo_state.json")
 
 POP = int(os.getenv("EVO_POP", "100"))
 PROVEN_WR = float(os.getenv("EVO_PROVEN_WR", "0.35"))  # win rate that keeps a bot alive and lets it breed
-MAX_POP = int(os.getenv("EVO_MAX_POP", "130"))          # breeding may push the population above POP, never above this
+# breeding may push the population above POP, never above this (at least 30% headroom, or proven bots can't breed)
+MAX_POP = max(int(os.getenv("EVO_MAX_POP", "0")), int(POP * 1.3))
 START_USD = float(os.getenv("EVO_START_USD", "10"))
 TARGET_WR = float(os.getenv("EVO_TARGET_WINRATE", "0.35"))
 REQ_WR = min(TARGET_WR, PROVEN_WR)  # win rate every check demands (lower either setting to relax it)
 CHECK_1 = int(os.getenv("EVO_CHECK_1", "5"))        # first profitability check (closed trades)
 EVAL_AFTER = CHECK_2 = int(os.getenv("EVO_CHECK_2", "10"))  # second check, same requirements; passing it graduates to validation
 MAX_PER_TOKEN = int(os.getenv("EVO_MAX_PER_TOKEN", "3"))    # max bots in one token at once (diversification, Notion load)
-KEEP_RETIRED = 150
+KEEP_RETIRED = max(150, POP // 2)
 VAL_TRADES = int(os.getenv("EVO_VAL_TRADES", "30"))
 VAL_CHECK = int(os.getenv("EVO_VAL_CHECK", "5"))     # early check inside validation (same requirements)
 MAX_DD_PCT = float(os.getenv("EVO_MAX_DRAWDOWN_PCT", "30"))
