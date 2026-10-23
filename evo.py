@@ -604,6 +604,33 @@ async def flush(tb, g, events):
     events.clear()
 
 
+async def sweep_orphans(g, S) -> int:
+    """Archive Open Trades rows that no live position owns (left behind by schema resets, retirements, crashes)."""
+    if not (auto.NOTION_TOKEN and auto.DB_OPEN):
+        return 0
+    live = {(p.get("page_id") or "").replace("-", "") for v in S["variants"].values() for p in v["positions"].values()}
+    pages, cursor = [], None
+    try:
+        for _ in range(10):
+            body = {"page_size": 100, **({"start_cursor": cursor} if cursor else {})}
+            r = await g["http"].post(f"https://api.notion.com/v1/databases/{auto.DB_OPEN}/query", headers=auto._h(), json=body)
+            r.raise_for_status()
+            j = r.json()
+            pages += [x["id"] for x in j.get("results", [])]
+            cursor = j.get("next_cursor")
+            if not j.get("has_more"):
+                break
+    except Exception as e:
+        log.warning("orphan sweep failed: %s", e)
+        return 0
+    n = 0
+    for pid in pages:
+        if pid.replace("-", "") not in live:
+            await auto.n_patch(g, pid, {"archived": True})
+            n += 1
+    return n
+
+
 async def run(tb, g, loop_seconds: int):
     import asyncio
     import menu  # lazy import: menu.py imports this module
@@ -613,6 +640,12 @@ async def run(tb, g, loop_seconds: int):
     pc: dict = {}
     start = time.time()
     last_scan = last_cmd = last_mon = 0.0
+    try:
+        n = await sweep_orphans(g, S)
+        if n:
+            events.append(f"Cleaned {n} stale row(s) from Notion Open Trades")
+    except Exception as e:
+        log.warning("sweep error: %s", e)
     while True:
         now = time.time()
         try:
