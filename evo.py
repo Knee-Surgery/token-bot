@@ -100,6 +100,8 @@ HARD_MAX_TOP10 = float(os.getenv("EVO_MAX_TOP10", "80"))         # top 10 must b
 HARD_MIN_LIQ = float(os.getenv("EVO_MIN_LIQ", "5000"))
 RUG_LIQ_DROP = float(os.getenv("EVO_RUG_LIQ_DROP_PCT", "30")) / 100   # liquidity down this much vs entry = rug exit
 CRASH_TICK_PCT = float(os.getenv("EVO_CRASH_TICK_PCT", "15"))         # price down this much between two checks
+PRICE_CHECK_PCT = float(os.getenv("EVO_PRICE_CHECK_PCT", "50"))       # a jump this big between two checks is confirmed
+JUP_PRICE = "https://lite-api.jup.ag/price/v3"                          # second price source for those checks
 RUG_EXIT_SLIP = float(os.getenv("EVO_RUG_EXIT_SLIP_PCT", "10"))       # paper penalty: you can't sell at the pre-rug price
 DISCRETION_PCT = float(os.getenv("EVO_DISCRETION_PCT", "10"))         # above this gross profit a bot may exit whenever it decides
 HARD_MAX_TOP1 = float(os.getenv("EVO_MAX_TOP1", "25"))              # biggest single (non-pool) holder
@@ -761,6 +763,69 @@ async def partial_sell(g, S, v, mint, pos, price, now):
             "Realised PnL (USD)": auto._num(pnl), "Cumulative PnL (USD)": auto._num(cum), "Mode": auto._sel("Paper")}))
 
 
+_jup: dict = {}
+
+
+async def checked_price(g, mint, price, ref):
+    """DexScreener sometimes serves a wrong price for a coin (24 Oct: TRUTH stuck at $0.001077 for over half an hour
+    while it really traded at $0.00014-0.00019, so bots 'sold' at +500-650% that never existed). A price that moved
+    PRICE_CHECK_PCT% or more since the last check is confirmed with Jupiter first; if the two disagree by more than
+    25% Jupiter's price is used. No answer from Jupiter -> None (skip this check, try again next tick)."""
+    if not ref or abs(price / ref - 1) * 100 < PRICE_CHECK_PCT:
+        return price
+    hit = _jup.get(mint)
+    if not hit or time.time() - hit[0] > 8:
+        js = await auto._get_json(g, "jup_price", f"{JUP_PRICE}?ids={mint}", cool=30)
+        jp = ((js or {}).get(mint) or {}).get("usdPrice")
+        hit = _jup[mint] = (time.time(), float(jp) if jp else None)
+    jp = hit[1]
+    if not jp:
+        return None
+    if abs(price / jp - 1) > 0.25:
+        log.warning("price check %s: DexScreener %.3g vs Jupiter %.3g, using Jupiter", mint[:6], price, jp)
+        return jp
+    return price
+
+
+async def fix_bad_prices(g, S, events):
+    """One-off repair: the TRUTH trades closed at DexScreener's wrong $0.001077 (see checked_price) are re-booked at
+    what the coin really traded at, about the entry price (minute candles: within a few % of entry when they 'sold'),
+    so each counts as a loss of the trading costs. Corrects bot funds, the overall total, wins, the proven flag, and
+    adds one Correction row to Trade Events so the journal's P&L chart drops by the same amount."""
+    if S.get("price_fix"):
+        return
+    S["price_fix"] = time.time()
+    since = 1792800000  # 2026-10-24 00:00 UTC
+    delta, n = 0.0, 0
+    for v in S["variants"].values():
+        hit = False
+        for t in v["closed"]:
+            if t["mint"] == BAD_PRICE_MINT and t["ts"] >= since and t["pnl_pct"] >= 100:
+                cost = t["pnl_usd"] / (t["pnl_pct"] / 100)
+                new = -cost * COST_PCT / 100
+                delta += new - t["pnl_usd"]
+                v["paper_usd"] += new - t["pnl_usd"]
+                S["total_wins"] = max(0, S.get("total_wins", 0) - t["win"])
+                t.update(pnl_pct=-COST_PCT, pnl_usd=new, win=False, why=t["why"] + " (bad price, corrected)")
+                n += 1
+                hit = True
+        if hit and v.get("proven") and not proven_now(v):
+            v["proven"] = False
+    if not n:
+        return
+    S["total_pnl"] = cum = (S.get("total_pnl") or 0.0) + delta
+    events.append(f"⚠️ Fix: {n} TRUTH trades were booked at a wrong price from DexScreener. Corrected by "
+                  f"-${-delta:,.2f} (total now {'-' if cum < 0 else '+'}${abs(cum):,.2f}).")
+    now = time.time()
+    await auto.n_create(g, auto.DB_EVENTS, {
+        "Event": auto._title(f"Correction TRUTH bad price ({n} trades)"), "Type": auto._sel("Correction"),
+        "Token": auto._text("TRUTH"), "Time": auto._date(now), "Realised PnL (USD)": auto._num(delta),
+        "Cumulative PnL (USD)": auto._num(cum), "Mode": auto._sel("Paper")})
+
+
+BAD_PRICE_MINT = "6bW6xsZxYqcvqabk9rRgQwgjPNwe8SACPusx5o1wpump"
+
+
 async def monitor(g, S, pc, events, notes_out):
     n_open = sum(len(v["positions"]) for v in S["variants"].values())
     patch_every = max(60, n_open * 0.8)  # keep Notion under its rate limit when many bots are open
@@ -773,7 +838,9 @@ async def monitor(g, S, pc, events, notes_out):
                 p = await get_pair(g, mint, pc, 8)
                 if not p or not p.get("priceUsd"):
                     continue
-                price = float(p["priceUsd"])
+                price = await checked_price(g, mint, float(p["priceUsd"]), pos.get("last_price") or pos["entry_price"])
+                if price is None:
+                    continue
                 liq = float((p.get("liquidity") or {}).get("usd", 0))
                 now = time.time()
                 gross = (price / pos["entry_price"] - 1) * 100
@@ -1183,6 +1250,10 @@ async def run(tb, g, loop_seconds: int):
     introduce_strategy(S, events)
     introduce_partial_test(S, events)
     fix_age_windows(S, events)
+    try:
+        await fix_bad_prices(g, S, events)
+    except Exception as e:  # the state is already corrected; only the Notion row can fail
+        log.warning("bad-price correction row: %s", e)
     pc: dict = {}
     start = time.time()
     last_scan = last_mon = last_clean = last_goal = last_save = 0.0
