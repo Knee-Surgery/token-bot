@@ -1251,7 +1251,7 @@ async def flush(tb, g, S, events):
     """Keep Telegram readable at a glance: important alerts go out at once, routine bot activity (spawned, retired,
     proven, rug exits...) is only counted, and one short summary is sent every DIGEST_MIN minutes. Then the menu
     is moved back under the new messages."""
-    import menu
+    import menu, trainee
     now = time.time()
     D = S.get("digest")
     if not D:
@@ -1259,8 +1259,7 @@ async def flush(tb, g, S, events):
         D = S["digest"] = {"since": now, "pnl": S.get("total_pnl") or 0.0, "trades": S.get("total_trades", 0),
                            "wins": S.get("total_wins", 0), "new": 0, "retired": 0,
                            "rec_n": R.get("n", 0), "rec_pnl": R.get("pnl", 0.0),
-                           "tr_n": len((S.get("trainee") or {}).get("closed") or []),
-                           "tr_pnl": (S.get("trainee") or {}).get("pnl", 0.0)}
+                           "tr": trainee.snapshot(S)}
     msgs = []
     for e in events:
         if e.startswith(ALERTS):
@@ -1287,11 +1286,7 @@ async def flush(tb, g, S, events):
             lines.append(f"Total: {menu.usd(S.get('total_pnl') or 0.0)}")
             if D["new"] or D["retired"]:
                 lines.append(f"Bots: {D['new']} new, {D['retired']} retired")
-            if S.get("trainee"):
-                import trainee
-                tl = trainee.digest_line(S["trainee"], D)
-                if tl:
-                    lines.append(tl)
+            lines += trainee.digest_lines(S, D)
             msgs.append("\n".join(lines))
         S["digest"] = None
     chunks = msgs

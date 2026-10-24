@@ -1,7 +1,14 @@
-"""The trainee: one bot trained intensely (paper only).
+"""The trainees: three bots trained intensely (paper only), each with its own personality, model, plan and money.
 
-It researches every coin it looks at the way a careful trader would, then learns from all of them, not only from the
-few it buys:
+  - Trainee 1 · Balanced: the default rules below.
+  - Trainee 2 · Careful: stricter bubble map (no linked group >= 10%, new wallets < 15%, insiders < 5%), must have
+    an X account, higher score bar, only the tight stop-loss and never a double buy on a dip.
+  - Trainee 3 · Bold: lower score bar and bigger stakes.
+They share one research engine and the same shadow trades (so three trainees cost no more requests than one), but
+each learns its own scoring model from them and picks its own exit plan and threshold.
+
+The research covers every coin they look at the way a careful trader would, and they learn from all of them, not only
+from the few they buy:
   - socials and community: X, Telegram (members, online now), website, from DexScreener / GeckoTerminal; the public
     t.me page gives the group size. X activity itself can't be read without a paid X API, so only "has an X" counts.
   - promotion and hype: DexScreener paid profile and boosts (dollars spent), buy/sell pressure, volume
@@ -45,11 +52,22 @@ RE_RESEARCH_MIN = 45
 ARMS = [dict(tp=tp, sl=sl, ps=ps, add=add, hold=hold)
         for tp in (20, 35, 60) for sl in (6, 10) for ps in ((0, 0), (0.5, 15)) for add in ("none", "strength", "dip")
         for hold in (15, 30)]
-THRESHOLDS = (0.45, 0.55, 0.65)
 HIGH_SCORE = 0.65
-DEFAULT_ARM = ARMS.index(dict(tp=35, sl=6, ps=(0.5, 15), add="strength", hold=30))
-DEFAULT_THR = 0.55
 MIN_PICKED = 12
+PATCH_OPEN_S = 120  # how often an open trade's row gets its current price and unrealised P&L
+
+ALL_ARMS = tuple(range(len(ARMS)))
+PROFILES = {
+    "t1": {"name": "Trainee 1 · Balanced", "short": "Balanced", "stake": STAKE, "strict": False,
+           "thresholds": (0.45, 0.55, 0.65), "arms": ALL_ARMS,
+           "default": (ARMS.index(dict(tp=35, sl=6, ps=(0.5, 15), add="strength", hold=30)), 0.55)},
+    "t2": {"name": "Trainee 2 · Careful", "short": "Careful", "stake": 0.25, "strict": True,
+           "thresholds": (0.6, 0.7, 0.8), "arms": tuple(i for i, a in enumerate(ARMS) if a["sl"] == 6 and a["add"] != "dip"),
+           "default": (ARMS.index(dict(tp=35, sl=6, ps=(0.5, 15), add="none", hold=30)), 0.7)},
+    "t3": {"name": "Trainee 3 · Bold", "short": "Bold", "stake": 0.4, "strict": False,
+           "thresholds": (0.35, 0.45, 0.55), "arms": ALL_ARMS,
+           "default": (ARMS.index(dict(tp=60, sl=10, ps=(0.5, 15), add="strength", hold=30)), 0.45)},
+}
 
 # research signals the model weighs; priors from common memecoin experience, then learned from the shadow trades
 PRIOR = {"bias": -0.2, "has_x": 0.3, "has_tg": 0.3, "has_web": 0.2, "tg_size": 0.4, "tg_online": 0.2, "promo": 0.1,
@@ -58,16 +76,48 @@ PRIOR = {"bias": -0.2, "has_x": 0.3, "has_tg": 0.3, "has_web": 0.2, "tg_size": 0
          "fresh_share": -0.8, "cluster_share": -1.0, "insider": -0.6, "top10": -0.4}
 
 
-def blank() -> dict:
-    return {"usd": START, "pnl": 0.0, "pos": None, "closed": [], "shadows": {}, "done": [], "w": dict(PRIOR),
-            "arm": DEFAULT_ARM, "thr": DEFAULT_THR, "seen": {}, "n_research": 0, "rugs_avoided": 0}
+def blank(tid) -> dict:
+    arm, thr = PROFILES[tid]["default"]
+    return {"usd": START, "pnl": 0.0, "pos": None, "closed": [], "w": dict(PRIOR), "arm": arm, "thr": thr,
+            "rugs_avoided": 0, "best_val": None}
 
 
-def state(S) -> dict:
-    T = S.setdefault("trainee", blank())
-    for k, x in blank().items():
-        T.setdefault(k, x)
-    return T
+def lab(S) -> dict:
+    """Shared research results: shadow trades in progress, finished ones, coins recently researched."""
+    L = S.setdefault("trainee_lab", {"shadows": {}, "done": [], "seen": {}, "n_research": 0})
+    old = S.pop("trainee", None)  # one-off: the single trainee becomes Trainee 1, its research is shared
+    if old:
+        for k in ("shadows", "done", "seen", "n_research"):
+            L[k] = old.get(k, L[k])
+        S.setdefault("trainees", {})["t1"] = {k: old[k] for k in blank("t1") if k in old}
+    return L
+
+
+def trainees(S) -> dict:
+    lab(S)
+    TT = S.setdefault("trainees", {})
+    for tid in PROFILES:
+        T = TT.setdefault(tid, blank(tid))
+        for k, x in blank(tid).items():
+            T.setdefault(k, x)
+    return TT
+
+
+def own_flags(tid, f) -> list:
+    """Extra red flags of a trainee's personality, from the stored research features."""
+    if not PROFILES[tid]["strict"]:
+        return []
+    x = dict(zip(FEATS, vec(f)))
+    out = []
+    if x["cluster_share"] >= 0.5:
+        out.append("careful: linked wallets hold 10%+")
+    if x["fresh_share"] >= 0.5:
+        out.append("careful: new wallets hold 15%+")
+    if x["insider"] >= 0.25:
+        out.append("careful: insiders hold 5%+")
+    if not x["has_x"]:
+        out.append("careful: no X account")
+    return out
 
 
 def clip(x, lo=-1.0, hi=1.0):
@@ -318,16 +368,17 @@ def simulate_tick(sh, price, liq, now, buyers_lead):
     sh["last"], sh["peak"] = price, max(sh["peak"], price)
 
 
-def choose(T):
-    """Switch to the exit plan and score threshold that made the most on the clean coins the trainee would have
-    bought (average % per trade, shrunk toward 0 while there are few results)."""
-    done = [d for d in T["done"] if not d["flags"]]
-    best, best_val = (DEFAULT_ARM, DEFAULT_THR), None
-    for thr in THRESHOLDS:
+def choose(T, tid, done):
+    """Switch to the exit plan and score threshold (within the trainee's personality) that made the most on the
+    clean coins it would have bought (average % per trade, shrunk toward 0 while there are few results)."""
+    P = PROFILES[tid]
+    done = [d for d in done if not d["flags"] and not own_flags(tid, d["f"])]
+    best, best_val = P["default"], None
+    for thr in P["thresholds"]:
         picked = [d for d in done if score(T["w"], d["f"]) >= thr]
         if len(picked) < MIN_PICKED:
             continue
-        for i in range(len(ARMS)):
+        for i in P["arms"]:
             vals = [d["res"][i] for d in picked]
             val = sum(vals) / len(vals) * len(vals) / (len(vals) + 15)
             if best_val is None or val > best_val:
@@ -343,24 +394,39 @@ def plan_txt(arm) -> str:
 
 
 # ---------- Notion ----------
-async def row(g, T, kind, name, price, usd, why, pnl=None, sc=None, research_txt=None):
+async def row(g, tid, T, kind, name, price, usd, why, pnl=None, extra=None):
+    """One event row (Entry / Double buy / Partial sell / Exit) for a trainee. Returns the page id."""
     props = {"Event": auto._title(f"{kind} {name}"), "Type": auto._sel(kind), "Token": auto._text(name),
-             "Time": auto._date(time.time()), "Price (USD)": auto._num(price), "Size (USD)": auto._num(usd),
-             "Reason": auto._text(why), "Mode": auto._sel("Paper")}
+             "Trainee": auto._sel(PROFILES[tid]["name"]), "Time": auto._date(time.time()),
+             "Price (USD)": auto._num(price), "Size (USD)": auto._num(usd), "Reason": auto._text(why),
+             "Mode": auto._sel("Paper")}
     if pnl is not None:
         props.update({"Realised PnL (USD)": auto._num(pnl), "Cumulative PnL (USD)": auto._num(T["pnl"])})
-    if kind == "Exit":
-        whole = T["closed"][-1]["pnl_usd"]
-        props["Result"] = auto._sel("Win" if whole > 0 else "Loss")
-    if sc is not None:
-        props["Score"] = auto._num(round(sc, 3))
-    if research_txt:
-        props["Research"] = auto._text(research_txt)
-    await auto.n_create(g, DB, props)
+    props.update(extra or {})
+    return await auto.n_create(g, DB, props)
+
+
+async def entry_page(g, tid, P):
+    """The trade's Entry row (its 'open/closed trade' row). Positions opened before rows were tracked are looked up."""
+    if P.get("page_id") or not auto.NOTION_TOKEN:
+        return P.get("page_id")
+    try:
+        rows = await evo._n_query(g, DB, {"and": [{"property": "Type", "select": {"equals": "Entry"}},
+                                                  {"property": "Token", "rich_text": {"equals": P["name"]}},
+                                                  {"property": "Status", "select": {"does_not_equal": "Closed"}}]})
+        P["page_id"] = rows[0]["id"] if rows else None
+    except Exception as e:
+        log.warning("trainee entry row lookup: %s", e)
+    return P.get("page_id")
+
+
+def value(L, price) -> float:
+    """What the trade has made so far: sold parts plus the rest at the current price after the sell fee."""
+    return L["realized"] + L["tokens"] * price * (1 - FEE / 100) - L["cost"]
 
 
 # ---------- the loop ----------
-async def manage_position(g, T, pc, now):
+async def manage_position(g, tid, T, pc, now):
     P = T["pos"]
     p = (pc.get(P["mint"]) or (0, None))[1]
     if not p or not p.get("priceUsd"):
@@ -378,7 +444,7 @@ async def manage_position(g, T, pc, now):
                 continue
             T["usd"] -= usd
             apply(P["leg"], ("add", usd), price)
-            await row(g, T, "Double buy", P["name"], price, usd,
+            await row(g, tid, T, "Double buy", P["name"], price, usd,
                       "up 8%+ and buyers still lead" if arm["add"] == "strength" else "pullback on a high-scoring coin")
             continue
         frac = act[1] if act[0] == "partial" else 1.0
@@ -387,47 +453,64 @@ async def manage_position(g, T, pc, now):
         T["usd"] += basis + got
         T["pnl"] += got
         if act[0] == "partial":
-            await row(g, T, "Partial sell", P["name"], price, basis, f"sold {frac:.0%} at +{arm['ps'][1]}%", pnl=got)
+            await row(g, tid, T, "Partial sell", P["name"], price, basis, f"sold {frac:.0%} at +{arm['ps'][1]}%", pnl=got)
             continue
         whole = P["leg"]["realized"]
+        pct = whole / P["base"] * 100
         T["closed"].append({"mint": P["mint"], "name": P["name"], "pnl_usd": round(whole, 4), "why": act[1], "ts": now,
-                            "pct": round(whole / P["base"] * 100, 2), "plan": P["arm"]})
+                            "pct": round(pct, 2), "plan": P["arm"]})
         T["closed"] = T["closed"][-200:]
-        await row(g, T, "Exit", P["name"], price, basis, act[1], pnl=got)
+        result = auto._sel("Win" if whole > 0 else "Loss")
+        await row(g, tid, T, "Exit", P["name"], price, basis, act[1], pnl=got, extra={"Result": result})
+        pid = await entry_page(g, tid, P)
+        await auto.n_patch(g, pid, {"properties": {
+            "Status": auto._sel("Closed"), "Exit Price (USD)": auto._num(price), "Exit Time": auto._date(now),
+            "Trade PnL (USD)": auto._num(whole), "Trade PnL %": auto._num(round(pct, 2)), "Result": result,
+            "Exit Reason": auto._text(act[1]), "Current Price (USD)": auto._num(price),
+            "Unrealised PnL (USD)": auto._num(0)}})
         T["pos"] = None
         return
+    if now - P.get("patched", 0) >= PATCH_OPEN_S:  # keep the open-trades view current
+        P["patched"] = now
+        pid = await entry_page(g, tid, P)
+        await auto.n_patch(g, pid, {"properties": {"Current Price (USD)": auto._num(price),
+                                                   "Unrealised PnL (USD)": auto._num(round(value(P["leg"], price), 4)),
+                                                   "Size (USD)": auto._num(round(P["leg"]["cost"], 4))}})
 
 
-def finish_shadow(T, mint, sh, now):
+def finish_shadow(S, mint, sh, now):
+    L = lab(S)
     res = [round(leg[5], 1) for leg in sh["legs"]]
-    T["done"].append({"f": vec(sh["f"]), "flags": sh["flags"], "res": res, "ts": round(now), "mint": mint})
-    T["done"] = T["done"][-MAX_DONE:]
-    if sh["flags"] and min(res) < -8:
-        T["rugs_avoided"] += 1  # a coin the research refused went on to lose more than 8% under every plan
-    learn(T, sh["f"], 1.0 if res[T["arm"]] > 0 else 0.0)
-    if len(T["done"]) % 5 == 0:
-        old = (T["arm"], T["thr"])
-        choose(T)
-        if (T["arm"], T["thr"]) != old:
-            log.info("trainee switched plan: %s, threshold %.2f", plan_txt(ARMS[T["arm"]]), T["thr"])
+    L["done"].append({"f": vec(sh["f"]), "flags": sh["flags"], "res": res, "ts": round(now), "mint": mint})
+    L["done"] = L["done"][-MAX_DONE:]
+    for tid, T in trainees(S).items():
+        if (sh["flags"] or own_flags(tid, sh["f"])) and min(res) < -8:
+            T["rugs_avoided"] += 1  # a coin this trainee refused went on to lose more than 8% under every plan
+        learn(T, sh["f"], 1.0 if res[T["arm"]] > 0 else 0.0)
+        if len(L["done"]) % 5 == 0:
+            old = (T["arm"], T["thr"])
+            choose(T, tid, L["done"])
+            if (T["arm"], T["thr"]) != old:
+                log.info("%s switched plan: %s, threshold %.2f", PROFILES[tid]["name"], plan_txt(ARMS[T["arm"]]), T["thr"])
 
 
 async def tick(g, S, pc):
-    T = state(S)
+    L, TT = lab(S), trainees(S)
     now = time.time()
-    mints = list(T["shadows"]) + ([T["pos"]["mint"]] if T["pos"] else [])
+    mints = list(L["shadows"]) + [T["pos"]["mint"] for T in TT.values() if T["pos"]]
     if mints:
-        await evo.prefetch(g, pc, mints, 10)
-    if T["pos"]:
-        await manage_position(g, T, pc, now)
-    for mint, sh in list(T["shadows"].items()):
+        await evo.prefetch(g, pc, list(set(mints)), 10)
+    for tid, T in TT.items():
+        if T["pos"]:
+            await manage_position(g, tid, T, pc, now)
+    for mint, sh in list(L["shadows"].items()):
         if now - sh.get("tick", 0) < SHADOW_SAMPLE_S - 1:
             continue
         sh["tick"] = now
         p = (pc.get(mint) or (0, None))[1]
         if not p or not p.get("priceUsd"):
             if now - sh["ts"] > 3600:
-                del T["shadows"][mint]  # coin gone from the feeds
+                del L["shadows"][mint]  # coin gone from the feeds
             continue
         price = await evo.checked_price(g, mint, float(p["priceUsd"]), sh["last"])
         if not price:
@@ -436,25 +519,26 @@ async def tick(g, S, pc):
         simulate_tick(sh, price, float((p.get("liquidity") or {}).get("usd", 0) or 0), now,
                       m5.get("buys", 0) > m5.get("sells", 0))
         if all(leg[5] is not None for leg in sh["legs"]):
-            finish_shadow(T, mint, sh, now)
-            del T["shadows"][mint]
+            finish_shadow(S, mint, sh, now)
+            del L["shadows"][mint]
 
 
 async def research_next(g, S, pc):
-    """Research one fresh candidate from the main scan, start its shadow trade, and buy it if it is good enough."""
-    T = state(S)
+    """Research one fresh candidate from the main scan, start its shadow trade, and let each trainee buy it if it
+    is good enough for that trainee."""
+    L, TT = lab(S), trainees(S)
     now = time.time()
-    T["seen"] = {m: t for m, t in T["seen"].items() if now - t < RE_RESEARCH_MIN * 60}
-    if len(T["shadows"]) >= MAX_SHADOWS:
+    L["seen"] = {m: t for m, t in L["seen"].items() if now - t < RE_RESEARCH_MIN * 60}
+    if len(L["shadows"]) >= MAX_SHADOWS:
         return
-    for mint in [m for m in g.get("cands") or [] if m not in T["seen"] and m not in T["shadows"]][:8]:
+    for mint in [m for m in g.get("cands") or [] if m not in L["seen"] and m not in L["shadows"]][:8]:
         p = await evo.get_pair(g, mint, pc, 60)
         if not p or not p.get("priceUsd"):
             continue
         age = evo.pair_age_min(p, now)
         if age is None or age < evo.HARD_MIN_AGE:
             continue
-        T["seen"][mint] = now
+        L["seen"][mint] = now
         ac = S["acache"].get(mint)
         if ac and now - ac["ts"] < evo.ACACHE_TTL_MIN * 60:
             a = ac["a"]
@@ -471,34 +555,55 @@ async def research_next(g, S, pc):
                                          "lp_locked", "fee_pct", "risks") if rc.get(k) is not None})
         ok, why = evo.rug_ok(a, p)
         R = await research(g, mint, p)
-        T["n_research"] += 1
+        L["n_research"] += 1
         flags = R["flags"] + ([] if ok else [f"safety rule: {why}"])
         price = float(p["priceUsd"])
         liq = float((p.get("liquidity") or {}).get("usd", 0) or 0)
-        sc = score(T["w"], R["f"])
-        L = new_leg(price, 1.0, liq, now)
-        T["shadows"][mint] = {"ts": now, "f": vec(R["f"]), "flags": flags, "score": round(sc, 3), "last": price,
-                              "peak": price, "liq": liq,
-                              "legs": [[L["cost"], L["tokens"], 0.0, False, False, None] for _ in ARMS]}
+        scores = {tid: score(T["w"], R["f"]) for tid, T in TT.items()}
+        leg = new_leg(price, 1.0, liq, now)
+        # the shared shadow trade uses the trainees' average score for its dip-buy rule
+        L["shadows"][mint] = {"ts": now, "f": vec(R["f"]), "flags": flags,
+                              "score": round(sum(scores.values()) / len(scores), 3), "last": price, "peak": price,
+                              "liq": liq, "legs": [[leg["cost"], leg["tokens"], 0.0, False, False, None] for _ in ARMS]}
         name = auto.token_name(a, mint)
-        if T["pos"] is None and not flags and sc >= T["thr"] and T["usd"] > 1 and not S.get("halted"):
-            usd = T["usd"] * STAKE
-            T["usd"] -= usd
-            T["pos"] = {"mint": mint, "name": name, "arm": T["arm"], "score": sc, "base": usd,
-                        "leg": new_leg(price, usd, liq, now)}
-            await row(g, T, "Entry", name, price, usd,
-                      f"score {sc:.2f} (needs {T['thr']:.2f}); plan: {plan_txt(ARMS[T['arm']])}", sc=sc,
-                      research_txt=R["summary"])
+        for tid, T in TT.items():
+            sc = scores[tid]
+            mine = flags + own_flags(tid, R["f"])
+            if T["pos"] is None and not mine and sc >= T["thr"] and T["usd"] > 1 and not S.get("halted"):
+                usd = T["usd"] * PROFILES[tid]["stake"]
+                T["usd"] -= usd
+                T["pos"] = {"mint": mint, "name": name, "arm": T["arm"], "score": sc, "base": usd,
+                            "leg": new_leg(price, usd, liq, now), "patched": now}
+                T["pos"]["page_id"] = await row(
+                    g, tid, T, "Entry", name, price, usd,
+                    f"score {sc:.2f} (needs {T['thr']:.2f}); plan: {plan_txt(ARMS[T['arm']])}",
+                    extra={"Status": auto._sel("Open"), "Current Price (USD)": auto._num(price),
+                           "Unrealised PnL (USD)": auto._num(0), "Score": auto._num(round(sc, 3)),
+                           "Research": auto._text(R["summary"])})
         return  # one coin per call: the research takes about 30 requests
 
 
-def digest_line(T, D) -> str | None:
-    n = len(T["closed"]) - D.get("tr_n", 0)
-    if not (n or T["pos"] or T["done"]):
-        return None
-    d = T["pnl"] - D.get("tr_pnl", 0.0)
-    return (f"🎓 Trainee: {n} trades {'+' if d >= 0 else '-'}${abs(d):,.2f} (total {'+' if T['pnl'] >= 0 else '-'}"
-            f"${abs(T['pnl']):,.2f}) · learned from {len(T['done'])} coins · {T['rugs_avoided']} rugs avoided")
+def snapshot(S) -> dict:
+    """Per-trainee trade count and P&L, for the hourly summary's 'since' figures."""
+    return {tid: [len(T["closed"]), T["pnl"]] for tid, T in (S.get("trainees") or {}).items()}
+
+
+def digest_lines(S, D) -> list:
+    if not S.get("trainees"):
+        return []
+    since = D.get("tr") or {}
+    out = []
+    for tid, T in trainees(S).items():
+        n0, p0 = since.get(tid, [0, 0.0])
+        n, d = len(T["closed"]) - n0, T["pnl"] - p0
+        if n or T["pos"] or T["closed"]:
+            out.append(f"🎓 {PROFILES[tid]['short']}: {n} trades {'+' if d >= 0 else '-'}${abs(d):,.2f} (total "
+                       f"{'+' if T['pnl'] >= 0 else '-'}${abs(T['pnl']):,.2f}){' · in a trade' if T['pos'] else ''}")
+    L = lab(S)
+    if out or L["done"]:
+        out.append(f"🎓 Learned from {len(L['done'])} coins · rugs avoided "
+                   + " / ".join(str(T["rugs_avoided"]) for T in trainees(S).values()))
+    return out
 
 
 async def loop(g, S, pc):
