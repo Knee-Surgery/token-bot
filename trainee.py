@@ -25,7 +25,7 @@ threshold that made the most on the coins it would actually have bought. Real (p
 Double buys: 'strength' adds 50% once the trade is up 8% and buyers still lead; 'dip' adds 50% on a pullback, only
 for high-scoring coins with steady liquidity. The data decides which, if either, is used. Every entry, double buy,
 partial sell and exit goes to its own Notion database with its own P&L chart. All the main bots' safety rules
-(evo.rug_ok, 4 h minimum age) apply on top of the research.
+(evo.rug_ok) apply on top of the research, and the trainees keep their own 4 h minimum age (MIN_AGE).
 """
 import asyncio, calendar, logging, math, os, re, time
 
@@ -47,6 +47,8 @@ SHADOW_SAMPLE_S = 30
 RESEARCH_EVERY_S = 30
 TICK_S = 15
 RE_RESEARCH_MIN = 45
+MIN_AGE = 240        # trainees only research coins 4 h+ old (the 300 bots' own minimum is separate)
+CANDS_EVERY_S = 120  # how often the trainees fetch their own list of established coins
 
 # exit plans the trainee compares on every coin it researches (fine-tuning grid)
 ARMS = [dict(tp=tp, sl=sl, ps=ps, add=add, hold=hold)
@@ -531,12 +533,15 @@ async def research_next(g, S, pc):
     L["seen"] = {m: t for m, t in L["seen"].items() if now - t < RE_RESEARCH_MIN * 60}
     if len(L["shadows"]) >= MAX_SHADOWS:
         return
-    for mint in [m for m in g.get("cands") or [] if m not in L["seen"] and m not in L["shadows"]][:8]:
+    if now - g.get("tr_cands_ts", 0) >= CANDS_EVERY_S:  # established coins: trending, top volume, boosted
+        g["tr_cands_ts"], g["tr_cands"] = now, await auto.discover(g, MIN_AGE)
+    pool = list(dict.fromkeys((g.get("tr_cands") or []) + (g.get("cands") or [])))
+    for mint in [m for m in pool if m not in L["seen"] and m not in L["shadows"]][:8]:
         p = await evo.get_pair(g, mint, pc, 60)
         if not p or not p.get("priceUsd"):
             continue
         age = evo.pair_age_min(p, now)
-        if age is None or age < evo.HARD_MIN_AGE:
+        if age is None or age < MIN_AGE:
             continue
         L["seen"][mint] = now
         ac = S["acache"].get(mint)
