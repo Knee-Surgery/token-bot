@@ -44,8 +44,9 @@ TARGET_WR = float(os.getenv("EVO_TARGET_WINRATE", "0.35"))
 REQ_WR = min(TARGET_WR, PROVEN_WR)  # win rate every check demands (lower either setting to relax it)
 CHECK_1 = int(os.getenv("EVO_CHECK_1", "5"))        # first profitability check (closed trades)
 EVAL_AFTER = CHECK_2 = int(os.getenv("EVO_CHECK_2", "10"))  # second check, same requirements; passing it graduates to validation
-# max bots in one token at once; 0 = no limit (owner, 2026-10-24). With no limit many bots can lose on one coin at once
-MAX_PER_TOKEN = int(os.getenv("EVO_MAX_PER_TOKEN", "0")) or 10 ** 9
+# max bots in one token at once (0 = no limit). 10 (owner, 2026-10-24): with no limit the whole population piled into
+# 2 coins in one hour and a single stop-out (DOPE, ~360 bots) cost $50.96
+MAX_PER_TOKEN = int(os.getenv("EVO_MAX_PER_TOKEN", "10")) or 10 ** 9
 KEEP_RETIRED = max(150, POP // 2)
 VAL_TRADES = int(os.getenv("EVO_VAL_TRADES", "30"))
 VAL_CHECK = int(os.getenv("EVO_VAL_CHECK", "5"))     # early check inside validation (same requirements)
