@@ -1345,6 +1345,7 @@ async def scan(g, S, pc, events):
             continue
 
         random.shuffle(wanting)
+        entered = []
         for v in wanting:
             sprint = bool(v.get("sprint"))
             if slots[sprint] <= 0:
@@ -1368,8 +1369,35 @@ async def scan(g, S, pc, events):
             await open_position(g, v, mint, p, a, age, size_usd, ex)
             free.remove(v)
             slots[sprint] -= 1
+            entered.append(v)
+        if entered:
+            coin_alert(S, events, mint, p, a, entered)
 
     await recovery_trades(g, S, pc, free, ok_tokens)
+
+
+COIN_REPORT_H = float(os.getenv("EVO_COIN_REPORT_H", "6"))  # one report per coin per this many hours
+
+
+def coin_alert(S, events, mint, p, a, entered):
+    """Fact-based report on a coin the bots just entered (coin_report.py), at most once per coin per COIN_REPORT_H.
+    Its evidence score is saved on every new trade, so reviews can check whether higher scores actually win."""
+    import coin_report
+    now = time.time()
+    name = auto.token_name(a, mint)
+    try:
+        sc, text = coin_report.report(name, mint, p, a, coin_report.track_record(S, mint, now), now)
+    except Exception as e:  # a report must never stop trading
+        log.warning("coin report %s: %s", mint, e)
+        return
+    for v in entered:
+        v["positions"][mint]["feat"]["evidence"] = sc
+    R = S.setdefault("coin_reports", {})
+    if now - (R.get(mint) or {}).get("ts", 0) >= COIN_REPORT_H * 3600:
+        events.append(text)
+        R[mint] = {"ts": now, "score": sc, "name": name}
+        for k in sorted(R, key=lambda m: R[m]["ts"])[:max(0, len(R) - 300)]:
+            del R[k]
 
 
 async def open_position(g, v, mint, p, a, age, size_usd, ex, recovery=False):
@@ -1503,7 +1531,7 @@ def leaderboard(S) -> str:
             f"\nValidated candidates: {', '.join(validated) or 'none yet'}" + why)
 
 
-ALERTS = ("🎯", "✅", "❌", "🆕", "⭐", "⚠️")  # sent straight away; everything else only feeds the hourly summary
+ALERTS = ("🎯", "✅", "❌", "🆕", "⭐", "⚠️", "🔎", "🧬")  # sent straight away; everything else only feeds the hourly summary
 DIGEST_MIN = float(os.getenv("TG_DIGEST_MIN", "60"))
 
 
