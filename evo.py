@@ -1044,6 +1044,7 @@ async def scan(g, S, pc, events):
     random.shuffle(free)
 
     cands = (await auto.discover(g, HARD_MIN_AGE))[:CANDIDATE_LIMIT]
+    g["cands"] = cands  # the trainee researches from the same list
     await prefetch(g, pc, cands, 15)  # one request per 30 coins instead of one each
     analyses = 0
     ok_tokens = []  # coins that passed every safety rule this scan (recovery trades pick from these)
@@ -1257,7 +1258,9 @@ async def flush(tb, g, S, events):
         R = S.get("recovery_stats") or {}
         D = S["digest"] = {"since": now, "pnl": S.get("total_pnl") or 0.0, "trades": S.get("total_trades", 0),
                            "wins": S.get("total_wins", 0), "new": 0, "retired": 0,
-                           "rec_n": R.get("n", 0), "rec_pnl": R.get("pnl", 0.0)}
+                           "rec_n": R.get("n", 0), "rec_pnl": R.get("pnl", 0.0),
+                           "tr_n": len((S.get("trainee") or {}).get("closed") or []),
+                           "tr_pnl": (S.get("trainee") or {}).get("pnl", 0.0)}
     msgs = []
     for e in events:
         if e.startswith(ALERTS):
@@ -1284,6 +1287,11 @@ async def flush(tb, g, S, events):
             lines.append(f"Total: {menu.usd(S.get('total_pnl') or 0.0)}")
             if D["new"] or D["retired"]:
                 lines.append(f"Bots: {D['new']} new, {D['retired']} retired")
+            if S.get("trainee"):
+                import trainee
+                tl = trainee.digest_line(S["trainee"], D)
+                if tl:
+                    lines.append(tl)
             msgs.append("\n".join(lines))
         S["digest"] = None
     chunks = msgs
@@ -1383,6 +1391,8 @@ async def run(tb, g, loop_seconds: int):
     # Telegram runs in its own task with long polling, so taps and messages are answered within about a second
     # instead of waiting for the next 10 s tick and for slow scans / Notion writes to finish.
     tg = asyncio.create_task(menu.poll(tb, g, S, pc))
+    import trainee
+    tr = asyncio.create_task(trainee.loop(g, S, pc))  # the intensely trained bot, beside the main loop
     family = cumfix = None
     try:
         if auto.NOTION_TOKEN and not S.get("cum_fixed"):
@@ -1428,8 +1438,8 @@ async def run(tb, g, loop_seconds: int):
                 break
             await asyncio.sleep(10)
     finally:
-        for t in (tg, family, cumfix):  # an unfinished correction simply continues next run
+        for t in (tg, tr, family, cumfix):  # an unfinished correction simply continues next run
             if t:
                 t.cancel()
-        await asyncio.gather(*(t for t in (tg, family, cumfix) if t), return_exceptions=True)
+        await asyncio.gather(*(t for t in (tg, tr, family, cumfix) if t), return_exceptions=True)
         save(S)
