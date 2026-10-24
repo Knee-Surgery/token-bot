@@ -179,6 +179,73 @@ def introduce_strategy(S, events):
         events.append(f"🆕 New strategy live: {len(swap)} bots switched to Momentum v2.")
 
 
+# Momentum v3.1 for all 300 bots (owner, 2026-10-24: 'implement the best working version of momentum'). Best of the
+# local live benchmarks: about -1% per trade (24 trades in 2 h) vs v3 -3.6%, v4 -7% and the bots' own rules about
+# -3.5%. Still not profitable in testing: it is the least bad. Each bot keeps its own stop-loss (6-8%) and
+# partial-sell level (20-30%), which evolution keeps tuning; the other genes are not used while this is on.
+MOMENTUM = os.getenv("EVO_MOMENTUM", "v3.1").strip().lower().replace("off", "")  # "off": back to the evolved genes
+M31_LOCK_START = 5   # rising profit lock switches on once a trade has been up this much (gross %)
+
+
+def m31_pair_ok(p: dict, age) -> bool:
+    """v3.1 entry, the market part: 4 h+, liquidity >= $30k, the hour and the 6 h trend rising, 5 m momentum +3 to +15%
+    (no chasing bigger spikes), buyers outnumber sellers in the last 5 m, 1 h volume 0.5-2x liquidity."""
+    ch, tx = p.get("priceChange") or {}, (p.get("txns") or {}).get("m5") or {}
+    liq = (p.get("liquidity") or {}).get("usd", 0) or 0
+    vl = ((p.get("volume") or {}).get("h1", 0) or 0) / liq if liq else 0
+    return (age is not None and age >= HARD_MIN_AGE and liq >= 30000 and (ch.get("h1") or 0) > 0
+            and (ch.get("h6") or 0) > 0 and 3 <= (ch.get("m5") or 0) <= 15 and tx.get("buys", 0) > tx.get("sells", 0)
+            and 0.5 <= vl <= 2)
+
+
+def m31_holders_ok(a: dict) -> bool:
+    return (a.get("holders") or 0) >= 500 and (a.get("top10") if a.get("top10") is not None else 100) <= 40
+
+
+def m31_lock(peak_gain) -> float:
+    return max(COST_PCT + 0.5, peak_gain * min(0.8, 0.4 + peak_gain / 100))  # +10 -> +5, +20 -> +12, +60 -> +48
+
+
+def m31_exits(gn: dict) -> dict:
+    return dict(gn, tp=1000, hold=30, sl=min(8.0, max(6.0, float(gn["sl"]))), ps_frac=0.5,
+                ps_at=min(30.0, max(20.0, float(gn["ps_at"]))), m31=True)
+
+
+def m31_exit(pos: dict, price: float, liq: float, now: float) -> str | None:
+    """v3.1 exits: rising profit lock from +5% (never moves down, at least the costs + 0.5%), stop-loss, out by 30 min,
+    crash and liquidity exits. Half the position is sold at ps_at by the monitor's partial sell; the rest rides here."""
+    gross = (price / pos["entry_price"] - 1) * 100
+    prev, pos["last_price"] = pos.get("last_price", price), price
+    pos["peak_price"] = max(pos.get("peak_price", pos["entry_price"]), price)
+    peak = (pos["peak_price"] / pos["entry_price"] - 1) * 100
+    if peak >= M31_LOCK_START:
+        pos["lock"] = max(pos.get("lock") if pos.get("lock") is not None else -1e9, m31_lock(peak))
+    if liq < pos["entry_liq"] * (1 - RUG_LIQ_DROP):
+        return "liquidity collapse"
+    if prev > 0 and price < prev * (1 - CRASH_TICK_PCT / 100):
+        return "crash exit"
+    if pos.get("lock") is not None and gross <= pos["lock"]:
+        return "rising profit lock"
+    if gross <= -pos["sl"]:
+        return "stop-loss"
+    if (now - pos["ts"]) / 60 >= pos["hold"]:
+        return "max hold time"
+    return None
+
+
+def introduce_momentum31(S, events):
+    """One-off: every active bot gets a v3.1 stop-loss (6-8%) and partial-sell level (about 25%) to start from."""
+    if not MOMENTUM or S.get("momentum31"):
+        return
+    S["momentum31"] = time.time()
+    for v in active(S):
+        v["genome"]["sl"] = round(random.uniform(6, 8), 2)
+        v["genome"]["ps_at"] = round(25 * random.uniform(0.85, 1.15), 1)
+        v["genome"] = clamp(v["genome"])
+    events.append("🆕 All 300 bots now trade Momentum v3.1 (best of the benchmarks so far, still not profitable in "
+                  "testing): rising coins only, rising profit lock, half sold at about +25%.")
+
+
 # Sprint group (owner request, 2026-10-24): 100 bots with the genes of the proven bots that are really in profit, no
 # entry filters (only the hard safety rules), no per-coin cooldown, a +25% net target and out within 10 minutes.
 SPRINT_N = int(os.getenv("EVO_SPRINT_N", "100"))
@@ -989,7 +1056,7 @@ async def monitor(g, S, pc, events, notes_out):
                         why = "Partial sell 100%"  # the whole position goes at the partial-sell level
                     else:
                         await partial_sell(g, S, v, mint, pos, price, now)
-                why = why or decide_exit(pos, price, liq, now)
+                why = why or (m31_exit(pos, price, liq, now) if pos.get("m31") else decide_exit(pos, price, liq, now))
 
                 if not why:
                     if now - pos.get("last_patch", 0) >= patch_every:  # keep Notion calls light
@@ -1087,9 +1154,13 @@ async def scan(g, S, pc, events):
         p_liq = (p.get("liquidity") or {}).get("usd", 0) or 0
         # quiet token: on established tokens these almost never moved enough to pay the costs
         quiet = p_liq and ((p.get("volume") or {}).get("h1", 0) or 0) / p_liq < HARD_MIN_VOL_LIQ
-        wanting = [v for v in free if v.get("sprint")  # Sprint bots: no entry filters or cooldown, safety rules only
-                   or (not quiet and now - v["cooldown"].get(mint, 0) > COOLDOWN_MIN * 60
-                       and entry_ok(p, v["genome"], age))]
+        if MOMENTUM:  # Momentum v3.1: one rule set for every bot
+            wanting = ([v for v in free if now - v["cooldown"].get(mint, 0) > COOLDOWN_MIN * 60]
+                       if not quiet and m31_pair_ok(p, age) else [])
+        else:
+            wanting = [v for v in free if v.get("sprint")  # Sprint bots: no entry filters or cooldown, safety rules only
+                       or (not quiet and now - v["cooldown"].get(mint, 0) > COOLDOWN_MIN * 60
+                           and entry_ok(p, v["genome"], age))]
         if not wanting:
             continue
         ac = S["acache"].get(mint)
@@ -1126,6 +1197,8 @@ async def scan(g, S, pc, events):
                     del rs[k]
             continue
         ok_tokens.append((mint, p, a, age))
+        if MOMENTUM and not m31_holders_ok(a):
+            continue
         holders = [vv for vv in S["variants"].values() if mint in vv["positions"]]
         slots = {False: MAX_PER_TOKEN - sum(1 for vv in holders if not vv.get("sprint")),
                  True: SPRINT_PER_TOKEN - sum(1 for vv in holders if vv.get("sprint"))}
@@ -1139,7 +1212,9 @@ async def scan(g, S, pc, events):
                 continue
             gn = v["genome"]
             size_usd = v["paper_usd"] * gn["size_frac"]
-            if sprint:
+            if MOMENTUM:
+                ex = m31_exits(gn)
+            elif sprint:
                 ex = sprint_exits(gn)
             else:
                 if a["holders"] < gn["min_holders"] or a["top10"] > gn["max_top10"] or (a["score"] or 0) < gn["min_score"]:
@@ -1190,7 +1265,8 @@ async def open_position(g, v, mint, p, a, age, size_usd, ex, recovery=False):
                             "lock_pull": ex["lock_pull"], "stall": ex["stall"],
                             "feat": features(p, a, age), "peak_price": fill, "last_price": price,
                             "recovery": recovery, "ps_frac": ex.get("ps_frac", 0), "ps_at": ex.get("ps_at", 0),
-                            "orig_cost": size_usd, "realized_usd": 0.0, "max_hold": ex.get("max_hold")}
+                            "orig_cost": size_usd, "realized_usd": 0.0, "max_hold": ex.get("max_hold"),
+                            "m31": bool(ex.get("m31")), "lock": None}
     v["cooldown"][mint] = ts
     v["last_entry"] = ts
 
@@ -1404,6 +1480,7 @@ async def run(tb, g, loop_seconds: int):
     await purge_bad_prices(g, S, events)
     restart_population(S, events)  # fresh population (done once); Momentum v2, partial-sell test and Sprint stay off
     fix_age_windows(S, events)     # 4 h minimum back: give the fresh bots real max-age windows again
+    introduce_momentum31(S, events)
     ensure_population(S, events)
     pc: dict = {}
     start = time.time()
