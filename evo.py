@@ -870,6 +870,72 @@ async def fix_bad_prices(g, S, events):
 
 
 BAD_PRICE_MINT = "6bW6xsZxYqcvqabk9rRgQwgjPNwe8SACPusx5o1wpump"
+BAD_PRICE_MIN = 0.0009  # TRUTH really traded at $0.00014-0.00024 that night; every row at or above this used the fake price
+
+
+async def _n_query(g, db, flt) -> list:
+    rows, cursor = [], None
+    while True:
+        r = await g["http"].post(f"https://api.notion.com/v1/databases/{db}/query", headers=auto._h(),
+                                 json={"page_size": 100, "filter": flt, **({"start_cursor": cursor} if cursor else {})})
+        r.raise_for_status()
+        j = r.json()
+        rows += j.get("results", [])
+        cursor = j.get("next_cursor")
+        if not j.get("has_more"):
+            break
+    return rows
+
+
+async def purge_bad_prices(g, S, events):
+    """One-off, after fix_bad_prices (owner: only true data anywhere). The corrected TRUTH trades were estimates, so
+    they are removed entirely (bot records, funds, counts); bots created during the glitch whose genes were moved
+    toward 'what winning trades had' (a set that included the fake wins) get their genes re-derived from their clean
+    parent; in Notion the fake rows (Closed Trades and Trade Events at the fake price) and the Correction row are
+    archived (Notion trash, restorable) and every running total is recalculated from the remaining rows."""
+    if S.get("purge_done") or not S.get("price_fix"):
+        return
+    S["purge_done"] = time.time()
+    removed, regened = 0, []
+    for v in S["variants"].values():
+        bad = [t for t in v["closed"] if "(bad price, corrected)" in t["why"]]
+        if bad:
+            v["closed"] = [t for t in v["closed"] if t not in bad]
+            v["paper_usd"] -= sum(t["pnl_usd"] for t in bad)
+            S["total_pnl"] = (S.get("total_pnl") or 0.0) - sum(t["pnl_usd"] for t in bad)
+            S["total_trades"] = max(0, S.get("total_trades", 0) - len(bad))
+            removed += len(bad)
+            if v.get("proven") and not proven_now(v):
+                v["proven"] = False
+        par = S["variants"].get(v.get("parent") or "")
+        if (par and v["status"] != "retired" and 1792805000 <= v["created"] <= S["price_fix"]
+                and any("moved toward what winning trades had" in n for n in v["notes"])):
+            gn = {k: (float(x) * random.uniform(0.85, 1.15) if k in ("sl", "trail", "lock_pull", "stall") else x)
+                  for k, x in par["genome"].items()}
+            v["genome"] = clamp(gn)
+            v["notes"] = [f"genes re-derived from {par['id']} (old ones were learned partly from fake TRUTH wins)"]
+            regened.append(v["id"])
+    archived = 0
+    if auto.NOTION_TOKEN:
+        try:
+            rows = (await _n_query(g, auto.DB_CLOSED, {"and": [
+                        {"property": "Token", "title": {"equals": "TRUTH"}},
+                        {"property": "Exit Price (USD)", "number": {"greater_than_or_equal_to": BAD_PRICE_MIN}}]})
+                    + await _n_query(g, auto.DB_EVENTS, {"or": [
+                        {"and": [{"property": "Token", "rich_text": {"equals": "TRUTH"}},
+                                 {"property": "Price (USD)", "number": {"greater_than_or_equal_to": BAD_PRICE_MIN}}]},
+                        {"property": "Type", "select": {"equals": "Correction"}}]}))
+            for row in rows:
+                await auto.n_patch(g, row["id"], {"archived": True})
+                archived += 1
+                await asyncio.sleep(0.35)  # Notion rate limit
+            S["cum_fixed"] = False  # run() recalculates every running total from the rows that remain
+        except Exception as e:
+            log.warning("purge of fake rows in Notion: %s", e)
+            S["purge_done"] = None  # try again next run (the state part is already done and won't repeat)
+    if removed or archived or regened:
+        events.append(f"⚠️ Removed every trace of the fake TRUTH wins: {removed} trades, {archived} Notion rows, "
+                      f"genes of {len(regened)} bots rebuilt from clean parents. Only real data left.")
 
 
 async def monitor(g, S, pc, events, notes_out):
@@ -1262,11 +1328,12 @@ async def sweep_orphans(g, S) -> int:
 
 
 async def pnl_history(g, S) -> list:
-    """Read every Exit row of Trade Events in time order, set S["total_pnl"] to the overall realised PnL, and return
+    """Read every Trade Events row that realised money, in time order, set S["total_pnl"] to the overall realised PnL, and return
     the rows whose 'Cumulative PnL (USD)' is not yet the overall running total (older rows held each bot's own
     total, which made the journal chart meaningless). Fixing them is left to fix_cumulative() in the background."""
     rows, cursor = [], None
-    body = {"page_size": 100, "filter": {"property": "Type", "select": {"equals": "Exit"}},
+    # every row that realised money: exits, partial sells (corrections too, if any are left)
+    body = {"page_size": 100, "filter": {"property": "Realised PnL (USD)", "number": {"is_not_empty": True}},
             "sorts": [{"property": "Time", "direction": "ascending"},
                       {"timestamp": "created_time", "direction": "ascending"}]}
     while True:
@@ -1308,6 +1375,7 @@ async def run(tb, g, loop_seconds: int):
         await fix_bad_prices(g, S, events)
     except Exception as e:  # the state is already corrected; only the Notion row can fail
         log.warning("bad-price correction row: %s", e)
+    await purge_bad_prices(g, S, events)
     introduce_sprint(S, events)  # after the correction, so no bot is picked for fake wins
     pc: dict = {}
     start = time.time()
