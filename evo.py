@@ -625,6 +625,31 @@ def grow(S, events):
                   f"Population now {pop_target(S)}" + (f" (ceiling {GROW_MAX})." if pop_target(S) >= GROW_MAX else "."))
 
 
+def replace_with_strongest(S, events):
+    """One-off (owner, 2026-10-24): the whole population becomes the strongest genes. The parents of the first
+    strongest-genes batch stay, the batch stays, and every other active bot is retired (an open trade is finished
+    first) and replaced by a mutated child of those parents, so all bots are the same as or close to the best.
+    Momentum v3.1 stays on for everyone."""
+    if S.get("replaced_strong") or not S.get("grown"):
+        return
+    batch = [v for v in active(S) if v["notes"] and v["notes"][0].startswith("strongest-genes batch")]
+    pids = list(dict.fromkeys(v["parent"] for v in batch if v.get("parent") in S["variants"]))
+    parents = [S["variants"][p] for p in pids] or strongest(S)
+    if not parents:
+        return
+    S["replaced_strong"] = time.time()
+    keep = {v["id"] for v in batch} | {p["id"] for p in parents}
+    old = [v for v in active(S) if v["id"] not in keep]
+    for v in old:
+        v["status"], v["reason"] = "retired", "replaced by a child of the strongest genes"
+    for i in range(len(old)):
+        par = parents[i % len(parents)]
+        gn, notes = mutate(par, S)
+        new_variant(S, gn, par["gen"] + 1, par["id"], [f"strongest-genes population: child of {par['id']}"] + notes)
+    events.append(f"🆕 Whole population rebuilt from the strongest genes: {len(old)} bots replaced by children of "
+                  f"{', '.join(p['id'] for p in parents)}. Still Momentum v3.1. Population {len(active(S))}.")
+
+
 def meets(w: list) -> tuple[bool, str]:
     """The profitability requirements: win rate >= REQ_WR and net PnL positive."""
     n, wins = len(w), sum(1 for t in w if t["win"])
@@ -1530,6 +1555,7 @@ async def run(tb, g, loop_seconds: int):
     restart_population(S, events)  # fresh population (done once); Momentum v2, partial-sell test and Sprint stay off
     fix_age_windows(S, events)     # 4 h minimum back: give the fresh bots real max-age windows again
     introduce_momentum31(S, events)
+    replace_with_strongest(S, events)  # one-off: every bot from the strongest genes (before this hour's batch)
     grow(S, events)  # 20 children of the strongest bots, once an hour
     ensure_population(S, events)
     pc: dict = {}
