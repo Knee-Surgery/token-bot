@@ -7,10 +7,10 @@ sells actually happening). Brand-new launches are skipped: in paper trading they
 (rugs and liquidity pulls in the first minutes). Everything else (max token age, momentum, volume, score, stricter
 holder limits) is an OPTIONAL gene: off by default, switched on or tuned by evolution only if it improves results.
 
-Strategy as of bf2874b (owner's choice, 2026-10-24): the later strategy changes (4 h minimum age, quiet-token rule,
-8% testing rule, recovery trades, 40% stakes for unproven bots, partial sells, Momentum v2, Sprint) are switched off
-for the 300 bots; their code stays, off by default. The trainees, the bad-price guard, the milestone and the
-Telegram summary are kept.
+Rules (2026-10-24, owner: 'whatever helps the bots profit'): the bf2874b strategy lost -$94 over 746 trades in its
+first 75 minutes (about -$75/h vs -$2 to -$6/h before). Brought back: 4 h minimum age, quiet-token rule, 8% testing
+rule, 40% stakes for unproven bots, 15-min flat hold and the matching gene bounds (replayed on those 746 trades:
+about -$11 instead of -$94). Still off: recovery trades, partial sells, Momentum v2, Sprint.
 
 EXIT (per variant genes): stop-loss, take-profit (45%+, aiming for 100%+), a trailing stop measured from the
 token's peak price since entry (armed once the trade is past break-even), a time cap (2 to 30 minutes), and
@@ -60,13 +60,14 @@ ACACHE_TTL_MIN = 30
 
 # hold window: no minimum hold; out by MAX_HOLD_FLAT minutes unless in profit, then never longer than HARD_HOLD
 HARD_HOLD = float(os.getenv("EVO_HARD_HOLD_MIN", "30"))      # only for trades that are in profit
-MAX_HOLD_FLAT = float(os.getenv("EVO_MAX_HOLD_MIN", "5"))    # everything not in profit is out by here at the latest
-# active tokens only: 1h volume at least this multiple of liquidity (0 = off, as at bf2874b; 0.5 was tried later)
-HARD_MIN_VOL_LIQ = float(os.getenv("EVO_MIN_VOL_LIQ", "0"))
+MAX_HOLD_FLAT = float(os.getenv("EVO_MAX_HOLD_MIN", "15"))   # everything not in profit is out by here at the latest
+# active tokens only: 1h volume at least this multiple of liquidity. On tokens 4h+ old, entries below 0.5x won
+# 1 of 72 trades across 12 tokens (paper data to 2026-10-23); on 2026-10-24 they lost $18.54 of $45.27
+HARD_MIN_VOL_LIQ = float(os.getenv("EVO_MIN_VOL_LIQ", "0.5"))
 
-# testing only sees trades that netted at least this much, or lost money (off = every trade counts, as at bf2874b;
-# 8 was tried later: small profits of 0 to 8% left out of the checks)
-WIN_MIN_PCT = float(os.getenv("EVO_WIN_MIN_PCT", "-1e9"))
+# testing only sees trades that netted at least this much, or lost money. Small profits (0 to 8%) are left out of
+# the checks, proven, validation and reliable-bot counts: they prove nothing. Their money still counts.
+WIN_MIN_PCT = float(os.getenv("EVO_WIN_MIN_PCT", "8"))
 
 # recovery trades: an idle bot takes a small quick trade to win back funds; never counted in testing (off at bf2874b)
 RECOVERY_ON = os.getenv("EVO_RECOVERY", "false").lower() == "true"
@@ -77,9 +78,10 @@ RECOVERY_HOLD = float(os.getenv("EVO_RECOVERY_HOLD_MIN", "15"))
 RECOVERY_CHECK_N = int(os.getenv("EVO_RECOVERY_CHECK_N", "40"))       # pause them if net negative after this many
 
 
-# bots that have not (yet) proven themselves trade this fraction of their normal size (1 = full size, as at
-# bf2874b; 0.4 was tried later)
-UNPROVEN_SIZE = float(os.getenv("EVO_UNPROVEN_SIZE", "1"))
+# bots that have not (yet) proven themselves trade this fraction of their normal size. Walk-forward replay of 1,421
+# paper trades: unproven bots lost $0.232/trade, already-proven ones $0.017/trade; at 40% the same trades lost
+# $127.63 instead of $317.71. Entry decisions are unchanged, only the stake.
+UNPROVEN_SIZE = float(os.getenv("EVO_UNPROVEN_SIZE", "0.4"))
 
 
 def proven_now(v) -> bool:
@@ -94,7 +96,9 @@ def test_trades(v) -> list:
     return [t for t in v["closed"] if t["pnl_pct"] >= WIN_MIN_PCT or t["pnl_usd"] <= 0]
 
 # rug-risk reasoning (hard rules; evolution can only make them stricter)
-HARD_MIN_AGE = float(os.getenv("EVO_MIN_AGE_MIN", "15"))          # pair must be at least this old (minutes)
+# pair must be at least this old (minutes). 4 h: across 61 tokens, entries into pairs under 4 h lost $237 of the
+# $235 total (to 2026-10-23); on 2026-10-24 under 4 h lost $48.71 over 234 trades in 75 minutes
+HARD_MIN_AGE = float(os.getenv("EVO_MIN_AGE_MIN", "240"))
 HARD_MIN_HOLDERS = int(os.getenv("EVO_MIN_HOLDERS", "50"))
 HARD_MAX_TOP10 = float(os.getenv("EVO_MAX_TOP10", "80"))         # top 10 must be strictly below this
 HARD_MIN_LIQ = float(os.getenv("EVO_MIN_LIQ", "5000"))
@@ -111,11 +115,12 @@ MIN_LP_LOCKED = float(os.getenv("EVO_MIN_LP_LOCKED", "50"))         # % of LP lo
 LAUNCH_SLIP = float(os.getenv("EVO_LAUNCH_SLIP_PCT", "3"))            # paper penalty on entries into pairs < 15 min old
 
 SCHEMA = 4  # bump to restart all variants from fresh seeds when the rules change
-BOUNDS = {"tp": (45, 300), "sl": (1.5, 8), "hold": (1, 5), "trail": (3, 30), "size_frac": (0.1, 0.5),
-          "target_usd": (0.2, 1.5), "max_age_min": (HARD_MIN_AGE + 15, 10080),
+BOUNDS = {"tp": (45, 300), "sl": (1.5, 8), "hold": (1, 15), "trail": (3, 30), "size_frac": (0.1, 0.5),
+          # max token age: at least 4 h above the hard minimum, so every bot has a real window of coins to buy
+          "target_usd": (0.2, 1.5), "max_age_min": (HARD_MIN_AGE + 240, 10080),
           "min_holders": (HARD_MIN_HOLDERS, 10000), "max_top10": (10, HARD_MAX_TOP10 - 1),
           "min_liq": (HARD_MIN_LIQ, 200000),
-          "min_score": (0, 90), "min_m5": (0, 3), "max_m5": (3, 1000), "min_txns": (0, 200),
+          "min_score": (0, 90), "min_m5": (0, 15), "max_m5": (3, 1000), "min_txns": (0, 200),
           "min_vol_h1": (0, 500000),
           "lock_pull": (0.5, 15), "stall": (2, 30),  # discretionary exit genes (used once profit > DISCRETION_PCT)
           "ps_frac": (0, 1), "ps_at": (5, 60)}  # partial sell: sell ps_frac of the position at +ps_at% gross
@@ -239,10 +244,10 @@ def fix_age_windows(S, events):
     """One-off repair: raising the hard minimum age to 4 h clamped 204 bots' max token age to 255 min, a 15-minute
     window (240-255 min) that almost no coin passes through, so they hardly traded (25 trades vs 160 for the rest).
     Give each bot whose window is under 4 h a fresh max age between 8 h and any age (log-uniform), so evolution can
-    find what works."""
-    if S.get("age_fix"):
+    find what works. Run again (age_fix2) when the 4 h minimum came back after the fresh start on 15-min rules."""
+    if S.get("age_fix2"):
         return
-    S["age_fix"] = time.time()
+    S["age_fix2"] = S["age_fix"] = time.time()
     fixed = 0
     for v in S["variants"].values():
         if v["status"] != "retired" and v["genome"]["max_age_min"] <= HARD_MIN_AGE + 240:  # load() already clamped 255 up to here
@@ -250,7 +255,8 @@ def fix_age_windows(S, events):
             v["genome"] = clamp(v["genome"])
             fixed += 1
     if fixed:
-        events.append(f"🆕 Fix: {fixed} bots had a tiny token-age window and could barely trade. They now trade normally.")
+        events.append(f"🆕 Rules updated for the 300 bots: coins 4 h+ old, quiet coins skipped, 40% stakes until a bot "
+                      f"proves itself (the bf2874b rules lost $94 in 75 min). {fixed} bots got a fresh coin-age window.")
 
 
 def introduce_partial_test(S, events):
@@ -1396,7 +1402,8 @@ async def run(tb, g, loop_seconds: int):
     except Exception as e:  # the state is already corrected; only the Notion row can fail
         log.warning("bad-price correction row: %s", e)
     await purge_bad_prices(g, S, events)
-    restart_population(S, events)  # bf2874b strategy; Momentum v2, partial-sell test and Sprint stay off
+    restart_population(S, events)  # fresh population (done once); Momentum v2, partial-sell test and Sprint stay off
+    fix_age_windows(S, events)     # 4 h minimum back: give the fresh bots real max-age windows again
     ensure_population(S, events)
     pc: dict = {}
     start = time.time()
