@@ -525,11 +525,11 @@ def active(S):
 
 def ensure_population(S, events):
     made = []
-    while len(active(S)) < POP:
+    while len(active(S)) < pop_target(S):
         v, desc = spawn(S)
         made.append((v, desc))
     if len(made) > 4:
-        events.append(f"SPAWNED {len(made)} new bots ({made[0][0]['id']}-{made[-1][0]['id']}); population now {POP}")
+        events.append(f"SPAWNED {len(made)} new bots ({made[0][0]['id']}-{made[-1][0]['id']}); population now {pop_target(S)}")
     else:
         for v, desc in made:
             events.append(f"SPAWNED {desc}\n  genome: {v['genome']}")
@@ -577,6 +577,54 @@ def judge(v: dict):
     return None
 
 
+# Growth (owner, 2026-10-24): every hour GROW_PER_HOUR new bots bred from the strongest bots join the population,
+# up to GROW_MAX. Under Momentum v3.1 the genes that matter are the stop-loss, the partial-sell level and the stake.
+GROW_PER_HOUR = int(os.getenv("EVO_GROW_PER_HOUR", "20"))
+GROW_MAX = int(os.getenv("EVO_GROW_MAX", "600"))     # population ceiling (state size, Notion and API limits)
+GROW_PARENTS = 5
+
+
+def pop_target(S) -> int:
+    return min(GROW_MAX, POP + S.get("grown", 0))
+
+
+def strongest(S, n=GROW_PARENTS) -> list:
+    """The best current bots: fitness on their counted trades, using only trades since Momentum v3.1 went live once a
+    bot has 3+ of them (they reflect today's rules), otherwise all its counted trades (5+ needed)."""
+    since = S.get("momentum31") or 0
+    scored = []
+    for v in S["variants"].values():
+        if v["status"] == "retired":
+            continue
+        T = test_trades(v)
+        recent = [t for t in T if t["ts"] >= since]
+        use = recent if since and len(recent) >= 3 else T if len(T) >= 5 else None
+        if use:
+            wr = sum(1 for t in use if t["win"]) / len(use)
+            scored.append((sum(t["pnl_pct"] for t in use) / len(use) + 5 * wr, sum(t["pnl_usd"] for t in use), v))
+    scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+    return [v for _, _, v in scored[:n]]
+
+
+def grow(S, events):
+    """Once an hour: GROW_PER_HOUR children of the strongest bots (mutated, so they explore around the best genes)."""
+    now = time.time()
+    if GROW_PER_HOUR <= 0 or now - S.get("last_grow", 0) < 3600 or pop_target(S) >= GROW_MAX:
+        return
+    parents = strongest(S)
+    if not parents:
+        return
+    S["last_grow"] = now
+    add = min(GROW_PER_HOUR, GROW_MAX - pop_target(S))
+    S["grown"] = S.get("grown", 0) + add
+    for i in range(add):
+        par = parents[i % len(parents)]
+        gn, notes = mutate(par, S)
+        new_variant(S, gn, par["gen"] + 1, par["id"], [f"strongest-genes batch: child of {par['id']}"] + notes)
+    events.append(f"🆕 +{add} bots bred from the strongest genes ({', '.join(p['id'] for p in parents)}). "
+                  f"Population now {pop_target(S)}" + (f" (ceiling {GROW_MAX})." if pop_target(S) >= GROW_MAX else "."))
+
+
 def meets(w: list) -> tuple[bool, str]:
     """The profitability requirements: win rate >= REQ_WR and net PnL positive."""
     n, wins = len(w), sum(1 for t in w if t["win"])
@@ -600,7 +648,8 @@ def breed_proven(S, v, events):
     total = sum(t["pnl_usd"] for t in c)
     level = (n >= CHECK_1) + (n >= CHECK_2) + max(0, (n - CHECK_2) // 10)
     v["proven"] = True
-    while v.get("bred_lvl", 0) < level and v["status"] != "retired" and len(active(S)) < MAX_POP:
+    while (v.get("bred_lvl", 0) < level and v["status"] != "retired"
+           and len(active(S)) < max(MAX_POP, int(pop_target(S) * 1.3))):
         v["bred_lvl"] = v.get("bred_lvl", 0) + 1
         gn, notes = mutate(v, S)
         ch = new_variant(S, gn, v["gen"] + 1, v["id"], ["bred from proven " + v["id"]] + notes)
@@ -1481,6 +1530,7 @@ async def run(tb, g, loop_seconds: int):
     restart_population(S, events)  # fresh population (done once); Momentum v2, partial-sell test and Sprint stay off
     fix_age_windows(S, events)     # 4 h minimum back: give the fresh bots real max-age windows again
     introduce_momentum31(S, events)
+    grow(S, events)  # 20 children of the strongest bots, once an hour
     ensure_population(S, events)
     pc: dict = {}
     start = time.time()
@@ -1521,7 +1571,7 @@ async def run(tb, g, loop_seconds: int):
                 if now - last_scan >= 20:
                     await scan(g, S, pc, events); last_scan = now
                 if now - last_goal >= 300:  # consistent-bot milestone and proof test
-                    milestone(S, events); last_goal = now
+                    milestone(S, events); grow(S, events); last_goal = now
                 if now - last_save >= 60:  # the file is only committed at the end of the run; once a minute is plenty
                     save(S); last_save = now
                 await flush(tb, g, S, events)
