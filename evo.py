@@ -188,25 +188,29 @@ def introduce_strategy(S, events):
 # min_m5, max_m5, min_liq); the other genes are not used while this is on.
 MOMENTUM = os.getenv("EVO_MOMENTUM", "v3.1").strip().lower().replace("off", "")  # "off": back to the evolved genes
 M31_LOCK_START = 5   # rising profit lock switches on once a trade has been up this much (gross %)
+# 5 m momentum ceiling, was 15 (owner, 2026-10-24 20:15 UTC): since the per-coin cap, entries at +5-15% made 177 trades
+# on 6 coins, all 6 losing, -$22.84 (-$0.13/trade); entries at +3-5% made 444 trades on 10 coins, -$7.74 (-$0.02/trade)
+M31_M5_MAX = float(os.getenv("EVO_M31_M5_MAX", "5"))
 
 
 def m31_pair_ok(p: dict, age) -> bool:
-    """v3.1 entry, the market part: 4 h+, liquidity >= $30k, the hour and the 6 h trend rising, 5 m momentum +3 to +15%
-    (no chasing bigger spikes), buyers outnumber sellers in the last 5 m, 1 h volume 0.5-2x liquidity."""
+    """v3.1 entry, the market part: 4 h+, liquidity >= $30k, the hour and the 6 h trend rising, 5 m momentum +3% to
+    M31_M5_MAX (no chasing bigger spikes), buyers outnumber sellers in the last 5 m, 1 h volume 0.5-2x liquidity."""
     ch, tx = p.get("priceChange") or {}, (p.get("txns") or {}).get("m5") or {}
     liq = (p.get("liquidity") or {}).get("usd", 0) or 0
     vl = ((p.get("volume") or {}).get("h1", 0) or 0) / liq if liq else 0
     return (age is not None and age >= HARD_MIN_AGE and liq >= 30000 and (ch.get("h1") or 0) > 0
-            and (ch.get("h6") or 0) > 0 and 3 <= (ch.get("m5") or 0) <= 15 and tx.get("buys", 0) > tx.get("sells", 0)
+            and (ch.get("h6") or 0) > 0 and 3 <= (ch.get("m5") or 0) <= M31_M5_MAX and tx.get("buys", 0) > tx.get("sells", 0)
             and 0.5 <= vl <= 2)
 
 
 def m31_window(gn: dict) -> tuple:
-    """Each bot's own entry window inside v3.1's (2026-10-24): 5 m momentum from min_m5 (3-8%) to max_m5 (6-15%),
-    liquidity at least min_liq ($30k-150k). Only ever tighter than v3.1, so evolution can tune entries again
-    (all bots were near-copies of v1092 and only their stop-loss and partial-sell level could evolve)."""
-    lo = min(8.0, max(3.0, float(gn.get("min_m5") or 0)))
-    hi = min(15.0, max(lo + 2, 6.0, float(gn.get("max_m5") or M5_OFF)))
+    """Each bot's own entry window inside v3.1's (2026-10-24): 5 m momentum from min_m5 (3% up to 1 below the
+    ceiling) to max_m5 (up to M31_M5_MAX), liquidity at least min_liq ($30k-150k). Only ever tighter than v3.1, so
+    evolution can tune entries again (all bots were near-copies of v1092 and only their stop-loss and partial-sell
+    level could evolve)."""
+    lo = min(M31_M5_MAX - 1, max(3.0, float(gn.get("min_m5") or 0)))
+    hi = min(M31_M5_MAX, max(lo + 1, float(gn.get("max_m5") or M5_OFF)))
     return lo, hi, min(150000.0, max(30000.0, float(gn.get("min_liq") or 0)))
 
 
