@@ -176,6 +176,48 @@ def introduce_strategy(S, events):
         events.append(f"🆕 New strategy live: {len(swap)} bots switched to Momentum v2.")
 
 
+# Sprint group (owner request, 2026-10-24): 100 bots with the genes of the proven bots that are really in profit, no
+# entry filters (only the hard safety rules), no per-coin cooldown, a +25% net target and out within 10 minutes.
+SPRINT_N = int(os.getenv("EVO_SPRINT_N", "100"))
+SPRINT_NET_PCT = float(os.getenv("EVO_SPRINT_NET_PCT", "25"))     # profit goal after costs (TP = this + COST_PCT)
+SPRINT_MAX_HOLD = float(os.getenv("EVO_SPRINT_MAX_HOLD_MIN", "10"))  # short trades: out by here even in profit
+SPRINT_PER_TOKEN = int(os.getenv("EVO_SPRINT_PER_TOKEN", "3"))   # own per-coin cap, so they don't crowd out the rest
+
+
+def sprint_exits(gn: dict) -> dict:
+    return dict(gn, tp=SPRINT_NET_PCT + COST_PCT, hold=min(float(gn["hold"]), SPRINT_MAX_HOLD), max_hold=SPRINT_MAX_HOLD)
+
+
+def introduce_sprint(S, events):
+    """Ship the Sprint group once: the SPRINT_N weakest unproven, idle bots are replaced by copies of the proven bots
+    whose counted trades are net positive (the best gets 60%, the rest share 40%). Exit genes get a small jitter so
+    copies on the same coin don't all exit at once. Proven and validating bots are never touched."""
+    if S.get("sprint_v"):
+        return
+    S["sprint_v"] = 1
+    src = [v for v in S["variants"].values() if v.get("proven") and sum(t["pnl_usd"] for t in test_trades(v)) > 0]
+    src.sort(key=lambda v: -sum(t["pnl_usd"] for t in test_trades(v)))
+    if not src:
+        return
+    pool = [v for v in active(S) if v["status"] == "testing" and not v.get("proven") and not v["positions"]
+            and not v.get("sprint")]
+    pool.sort(key=lambda v: (sum(t["pnl_usd"] for t in v["closed"]), -len(v["closed"])))  # biggest losers first
+    swap = pool[:SPRINT_N]
+    for v in swap:
+        v["status"], v["reason"] = "retired", "replaced by the Sprint group"
+    n_best = len(swap) if len(src) == 1 else round(len(swap) * 0.6)
+    for i in range(len(swap)):
+        par = src[0] if i < n_best else src[1 + (i - n_best) % (len(src) - 1)]
+        gn = {k: (float(x) * random.uniform(0.85, 1.15) if k in ("sl", "trail", "lock_pull", "stall") else x)
+              for k, x in par["genome"].items()}
+        ch = new_variant(S, clamp(gn), par["gen"] + 1, par["id"], [f"Sprint group: genes of proven {par['id']}"])
+        ch["sprint"] = True
+    if swap:
+        events.append(f"🆕 Sprint group live: {len(swap)} bots with the genes of the best proven bots "
+                      f"({', '.join(v['id'] for v in src)}). No entry filters, +{SPRINT_NET_PCT:g}% target, "
+                      f"out within {SPRINT_MAX_HOLD:g} min.")
+
+
 def fix_age_windows(S, events):
     """One-off repair: raising the hard minimum age to 4 h clamped 204 bots' max token age to 255 min, a 15-minute
     window (240-255 min) that almost no coin passes through, so they hardly traded (25 trades vs 160 for the rest).
@@ -468,6 +510,8 @@ def breed_proven(S, v, events):
         v["bred_lvl"] = v.get("bred_lvl", 0) + 1
         gn, notes = mutate(v, S)
         ch = new_variant(S, gn, v["gen"] + 1, v["id"], ["bred from proven " + v["id"]] + notes)
+        if v.get("sprint"):
+            ch["sprint"] = True  # children of Sprint bots trade the Sprint way too
         events.append(f"PROVEN {v['id']}: {wins}/{n} wins ({wins / n:.0%}), net {total:+.2f} USD. Stays alive and bred "
                       f"{ch['id']} gen{ch['gen']}\n  {'; '.join(notes)}")
 
@@ -715,6 +759,8 @@ def decide_exit(pos: dict, price: float, liq: float, now: float) -> str | None:
     if pos.get("armed") and gross <= max(floor, trail_gross):
         return "trailing-stop"
     cap = HARD_HOLD if in_profit else min(pos["hold"], MAX_HOLD_FLAT)  # 5 min unless in profit (then up to 30)
+    if pos.get("max_hold"):
+        cap = min(cap, pos["max_hold"])  # Sprint trades: short, even in profit
     if age_min >= cap:
         return "max hold time"
     return None
@@ -945,10 +991,11 @@ async def scan(g, S, pc, events):
         if age is None or age < HARD_MIN_AGE:
             continue  # too new for the rug rules; don't spend one of the few analyses per scan on it
         p_liq = (p.get("liquidity") or {}).get("usd", 0) or 0
-        if p_liq and ((p.get("volume") or {}).get("h1", 0) or 0) / p_liq < HARD_MIN_VOL_LIQ:
-            continue  # quiet token: on established tokens these almost never moved enough to pay the costs
-        wanting = [v for v in free if now - v["cooldown"].get(mint, 0) > COOLDOWN_MIN * 60
-                   and entry_ok(p, v["genome"], age)]
+        # quiet token: on established tokens these almost never moved enough to pay the costs
+        quiet = p_liq and ((p.get("volume") or {}).get("h1", 0) or 0) / p_liq < HARD_MIN_VOL_LIQ
+        wanting = [v for v in free if v.get("sprint")  # Sprint bots: no entry filters or cooldown, safety rules only
+                   or (not quiet and now - v["cooldown"].get(mint, 0) > COOLDOWN_MIN * 60
+                       and entry_ok(p, v["genome"], age))]
         if not wanting:
             continue
         ac = S["acache"].get(mint)
@@ -985,27 +1032,34 @@ async def scan(g, S, pc, events):
                     del rs[k]
             continue
         ok_tokens.append((mint, p, a, age))
-        slots = MAX_PER_TOKEN - sum(1 for vv in S["variants"].values() if mint in vv["positions"])
-        if slots <= 0:
+        holders = [vv for vv in S["variants"].values() if mint in vv["positions"]]
+        slots = {False: MAX_PER_TOKEN - sum(1 for vv in holders if not vv.get("sprint")),
+                 True: SPRINT_PER_TOKEN - sum(1 for vv in holders if vv.get("sprint"))}
+        if max(slots.values()) <= 0:
             continue
 
         random.shuffle(wanting)
         for v in wanting:
-            if slots <= 0:
-                break
-            gn = v["genome"]
-            if a["holders"] < gn["min_holders"] or a["top10"] > gn["max_top10"] or (a["score"] or 0) < gn["min_score"]:
+            sprint = bool(v.get("sprint"))
+            if slots[sprint] <= 0:
                 continue
+            gn = v["genome"]
             size_usd = v["paper_usd"] * gn["size_frac"]
-            exp_net = size_usd * (gn["tp"] - COST_PCT) / 100
-            target = max(TARGET_USD, float(gn.get("target_usd", TARGET_USD)))
-            if exp_net < target * 0.9:
-                continue  # position too small to net the variant's dollar target at its TP
+            if sprint:
+                ex = sprint_exits(gn)
+            else:
+                if a["holders"] < gn["min_holders"] or a["top10"] > gn["max_top10"] or (a["score"] or 0) < gn["min_score"]:
+                    continue
+                exp_net = size_usd * (gn["tp"] - COST_PCT) / 100
+                target = max(TARGET_USD, float(gn.get("target_usd", TARGET_USD)))
+                if exp_net < target * 0.9:
+                    continue  # position too small to net the variant's dollar target at its TP
+                ex = gn
             if not proven_now(v):  # same trade, smaller stake until the bot has proven itself
                 size_usd *= UNPROVEN_SIZE
-            await open_position(g, v, mint, p, a, age, size_usd, gn)
+            await open_position(g, v, mint, p, a, age, size_usd, ex)
             free.remove(v)
-            slots -= 1
+            slots[sprint] -= 1
 
     await recovery_trades(g, S, pc, free, ok_tokens)
 
@@ -1042,7 +1096,7 @@ async def open_position(g, v, mint, p, a, age, size_usd, ex, recovery=False):
                             "lock_pull": ex["lock_pull"], "stall": ex["stall"],
                             "feat": features(p, a, age), "peak_price": fill, "last_price": price,
                             "recovery": recovery, "ps_frac": ex.get("ps_frac", 0), "ps_at": ex.get("ps_at", 0),
-                            "orig_cost": size_usd, "realized_usd": 0.0}
+                            "orig_cost": size_usd, "realized_usd": 0.0, "max_hold": ex.get("max_hold")}
     v["cooldown"][mint] = ts
     v["last_entry"] = ts
 
@@ -1254,6 +1308,7 @@ async def run(tb, g, loop_seconds: int):
         await fix_bad_prices(g, S, events)
     except Exception as e:  # the state is already corrected; only the Notion row can fail
         log.warning("bad-price correction row: %s", e)
+    introduce_sprint(S, events)  # after the correction, so no bot is picked for fake wins
     pc: dict = {}
     start = time.time()
     last_scan = last_mon = last_clean = last_goal = last_save = 0.0
