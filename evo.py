@@ -184,7 +184,8 @@ def introduce_strategy(S, events):
 # Momentum v3.1 for all 300 bots (owner, 2026-10-24: 'implement the best working version of momentum'). Best of the
 # local live benchmarks: about -1% per trade (24 trades in 2 h) vs v3 -3.6%, v4 -7% and the bots' own rules about
 # -3.5%. Still not profitable in testing: it is the least bad. Each bot keeps its own stop-loss (6-8%) and
-# partial-sell level (20-30%), which evolution keeps tuning; the other genes are not used while this is on.
+# partial-sell level (20-30%), which evolution keeps tuning, and its own entry window inside v3.1's (m31_window:
+# min_m5, max_m5, min_liq); the other genes are not used while this is on.
 MOMENTUM = os.getenv("EVO_MOMENTUM", "v3.1").strip().lower().replace("off", "")  # "off": back to the evolved genes
 M31_LOCK_START = 5   # rising profit lock switches on once a trade has been up this much (gross %)
 
@@ -198,6 +199,20 @@ def m31_pair_ok(p: dict, age) -> bool:
     return (age is not None and age >= HARD_MIN_AGE and liq >= 30000 and (ch.get("h1") or 0) > 0
             and (ch.get("h6") or 0) > 0 and 3 <= (ch.get("m5") or 0) <= 15 and tx.get("buys", 0) > tx.get("sells", 0)
             and 0.5 <= vl <= 2)
+
+
+def m31_window(gn: dict) -> tuple:
+    """Each bot's own entry window inside v3.1's (2026-10-24): 5 m momentum from min_m5 (3-8%) to max_m5 (6-15%),
+    liquidity at least min_liq ($30k-150k). Only ever tighter than v3.1, so evolution can tune entries again
+    (all bots were near-copies of v1092 and only their stop-loss and partial-sell level could evolve)."""
+    lo = min(8.0, max(3.0, float(gn.get("min_m5") or 0)))
+    hi = min(15.0, max(lo + 2, 6.0, float(gn.get("max_m5") or M5_OFF)))
+    return lo, hi, min(150000.0, max(30000.0, float(gn.get("min_liq") or 0)))
+
+
+def m31_gene_ok(p: dict, gn: dict) -> bool:
+    lo, hi, liq = m31_window(gn)
+    return lo <= ((p.get("priceChange") or {}).get("m5") or 0) <= hi and ((p.get("liquidity") or {}).get("usd", 0) or 0) >= liq
 
 
 def m31_holders_ok(a: dict) -> bool:
@@ -652,6 +667,23 @@ def clone_best(S, events):
         new_variant(S, clamp(gn), best["gen"] + 1, best["id"], [f"copy of {best['id']} (slightly different)"])
     events.append(f"🆕 All bots now carry {best['id']}'s genes, each slightly different ({len(old)} replaced). "
                   f"No limit on bots per coin. Still Momentum v3.1.")
+
+
+def spread_entry_genes(S, events):
+    """One-off (2026-10-24): give every active bot except CLONE_ID its own v3.1 entry window (see m31_window), so
+    bots differ in which coins they buy and the 10 slots per coin go to bots that want it. CLONE_ID keeps v3.1's."""
+    if S.get("spread_entry") or not MOMENTUM:
+        return
+    S["spread_entry"] = time.time()
+    bots = [v for v in active(S) if v["id"] != CLONE_ID]
+    for v in bots:
+        gn = dict(v["genome"], min_m5=random.uniform(3, 6), max_m5=random.uniform(8, 15),
+                  min_liq=random.uniform(30000, 90000))
+        v["genome"] = clamp(gn)
+        v["notes"].append("own v3.1 entry window: m5 %.1f-%.1f%%, liquidity $%.0fk+" % (
+            v["genome"]["min_m5"], v["genome"]["max_m5"], v["genome"]["min_liq"] / 1000))
+    events.append(f"🧬 Evolution tunes entries again: {len(bots)} bots each got their own entry window inside "
+                  f"Momentum v3.1 (5 m momentum 3-15%, liquidity $30k+, never looser). Max 10 bots per coin stays.")
 
 
 def replace_with_strongest(S, events):
@@ -1258,8 +1290,8 @@ async def scan(g, S, pc, events):
         # quiet token: on established tokens these almost never moved enough to pay the costs
         quiet = p_liq and ((p.get("volume") or {}).get("h1", 0) or 0) / p_liq < HARD_MIN_VOL_LIQ
         if MOMENTUM:  # Momentum v3.1: one rule set for every bot
-            wanting = ([v for v in free if now - v["cooldown"].get(mint, 0) > COOLDOWN_MIN * 60]
-                       if not quiet and m31_pair_ok(p, age) else [])
+            wanting = ([v for v in free if now - v["cooldown"].get(mint, 0) > COOLDOWN_MIN * 60
+                        and m31_gene_ok(p, v["genome"])] if not quiet and m31_pair_ok(p, age) else [])
         else:
             wanting = [v for v in free if v.get("sprint")  # Sprint bots: no entry filters or cooldown, safety rules only
                        or (not quiet and now - v["cooldown"].get(mint, 0) > COOLDOWN_MIN * 60
@@ -1604,6 +1636,7 @@ async def run(tb, g, loop_seconds: int):
     introduce_momentum31(S, events)
     clone_best(S, events)              # one-off: every bot a slightly different copy of v1092
     replace_with_strongest(S, events)  # one-off: every bot from the strongest genes (skipped once cloned)
+    spread_entry_genes(S, events)      # one-off: each bot its own entry window inside v3.1
     grow(S, events)  # 20 children of the strongest bots, once an hour
     ensure_population(S, events)
     pc: dict = {}
