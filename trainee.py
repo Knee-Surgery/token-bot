@@ -19,9 +19,14 @@ from the few they buy:
     transaction, Solana RPC). Holders funded by the same wallet are one cluster; fresh wallets (few transactions)
     holding a lot is the classic bundled-launch pattern. Bubblemaps' own data isn't open, so this does the same job.
 Every researched coin becomes a 'shadow trade': its price is followed and every exit plan in ARMS (take-profit,
-stop-loss, partial sells, double buys, hold time) is simulated on the real price ticks. A small logistic model learns
-which research signals came before a profit, and every few results the trainee switches to the plan and score
-threshold that made the most on the coins it would actually have bought. Real (paper) trades use that plan.
+stop-loss, sell all or half at the take-profit, double buys) is simulated on the real price ticks. A small logistic
+model learns which research signals came before a profit, and every few results the trainees switch to the plan and
+score threshold that made the most on the coins they would actually have bought. Real (paper) trades use that plan.
+No hold-time limits (owner, 2026-10-24): a trade stays open until it reaches its take-profit, where it either sells
+everything or sells half and lets the rest run. Protective exits: stop-loss, crash, liquidity pull, and a profit-lock
+stop that only ever moves up: once a trade has been up LOCK_START% it locks in part of the best gain so far (a share
+that grows with the gain, never less than the costs plus a little), so a trade that was clearly in profit can't
+turn into a loss, and the more it makes the more of it is kept.
 Double buys: 'strength' adds 50% once the trade is up 8% and buyers still lead; 'dip' adds 50% on a pullback, only
 for high-scoring coins with steady liquidity. The data decides which, if either, is used. Every entry, double buy,
 partial sell and exit goes to its own Notion database with its own P&L chart. All the main bots' safety rules
@@ -50,16 +55,23 @@ RE_RESEARCH_MIN = 45
 MIN_AGE = 240        # trainees only research coins 4 h+ old (the 300 bots' own minimum is separate)
 CANDS_EVERY_S = 120  # how often the trainees fetch their own list of established coins
 
-# exit plans the trainee compares on every coin it researches (fine-tuning grid)
-ARMS = [dict(tp=tp, sl=sl, ps=ps, add=add, hold=hold)
-        for tp in (20, 35, 60) for sl in (6, 10) for ps in ((0, 0), (0.5, 15)) for add in ("none", "strength", "dip")
-        for hold in (15, 30)]
+# exit plans the trainees compare on every coin they research (fine-tuning grid). at_tp: sell everything at the
+# take-profit, or sell half there and let the rest run
+ARMS = [dict(tp=tp, sl=sl, at_tp=at_tp, add=add)
+        for tp in (20, 35, 60) for sl in (6, 10) for at_tp in ("all", "half") for add in ("none", "strength", "dip")]
+ARMS_V = 3           # bump when ARMS or the exit rules change: older shadow results can't be compared
+OLD_ARMS = [dict(tp=tp, sl=sl, at_tp="half" if ps[0] else "all", add=add)  # version 1 (with hold times), for migration
+            for tp in (20, 35, 60) for sl in (6, 10) for ps in ((0, 0), (0.5, 15)) for add in ("none", "strength", "dip")
+            for hold in (15, 30)]
+LOCK_START = 5                 # profit-lock stop switches on once the trade has been up this much (gross %)
+LOCK_MIN = evo.COST_PCT + 0.5  # it never locks less than this: the costs plus a little profit
+SHADOW_MAX_H = 6     # a shadow trade still open after this long is scored at the market price (so learning goes on)
 HIGH_SCORE = 0.65
 MIN_PICKED = 12
 PATCH_OPEN_S = 120  # how often an open trade's row gets its current price and unrealised P&L
 
 THRESHOLDS = (0.45, 0.55, 0.65)
-DEFAULT = (ARMS.index(dict(tp=35, sl=6, ps=(0.5, 15), add="strength", hold=30)), 0.55)  # (plan, score bar)
+DEFAULT = (ARMS.index(dict(tp=35, sl=6, at_tp="half", add="strength")), 0.55)  # (plan, score bar)
 NAMES = {"t1": "Trainee 1 · Balanced", "t2": "Trainee 2 · Balanced", "t3": "Trainee 3 · Balanced"}
 
 # research signals the model weighs; priors from common memecoin experience, then learned from the shadow trades
@@ -88,6 +100,15 @@ def lab(S) -> dict:
                       "best_val": t1.get("best_val"),
                       "rugs_avoided": sum(T.get("rugs_avoided", 0) for T in (S.get("trainees") or {}).values()),
                       "feedback": 0}
+    if L.get("arms_v", 1) != ARMS_V:  # one-off: plans without hold times
+        L["arms_v"] = ARMS_V
+        L["shadows"], L["done"] = {}, []  # their per-plan results were for the old plans (the model's learning stays)
+        L["brain"]["arm"], L["brain"]["best_val"] = DEFAULT[0], None
+        for T in (S.get("trainees") or {}).values():
+            P = T.get("pos")
+            if P and isinstance(P.get("arm"), int) and P["arm"] < len(OLD_ARMS):
+                P["arm"] = ARMS.index(OLD_ARMS[P["arm"]])  # same take-profit, stop-loss and double buy, no hold time
+                P["leg"].setdefault("ps_done", False)
     return L
 
 
@@ -282,23 +303,35 @@ def learn(T, f, y):
 # ---------- one position under one exit plan ----------
 def new_leg(price, usd, liq, now) -> dict:
     return {"cost": usd, "tokens": usd * (1 - FEE / 100) / price, "realized": 0.0, "peak": price, "last": price,
-            "liq": liq, "ts": now, "ps_done": False, "added": False}
+            "liq": liq, "ts": now, "ps_done": False, "added": False, "lock": None}
+
+
+def lock_level(peak_gain) -> float:
+    """Gross % the profit-lock stop holds for a given best gain: a share of it that grows with the gain (45% of a
+    5% gain ... 80% from a 40% gain), never less than LOCK_MIN. +10% -> +5%, +20% -> +12%, +35% -> ~+26%."""
+    return max(LOCK_MIN, peak_gain * min(0.8, 0.4 + peak_gain / 100))
 
 
 def step(L, arm, price, liq, now, buyers_lead, high_score) -> list:
     """Advance one position by one price tick; returns actions ('add', usd) / ('partial', frac) / ('exit', reason).
-    Pure logic: the caller books the money (apply) and writes the rows."""
+    No hold-time limits: the trade runs until its take-profit (sell all, or sell half and let the rest run) or a
+    protective exit. The profit-lock stop only ever rises. Pure logic: the caller books the money and writes rows."""
     acts = []
     avg = L["cost"] / (L["tokens"] / (1 - FEE / 100))  # average buy price
     gross = (price / avg - 1) * 100
     prev, L["last"] = L["last"], price
     L["peak"] = max(L["peak"], price)
+    peak_gain = (L["peak"] / avg - 1) * 100
+    if peak_gain >= LOCK_START:  # ratchet: up with the best gain, never down
+        L["lock"] = max(L.get("lock") if L.get("lock") is not None else -1e9, lock_level(peak_gain))
     if liq < L["liq"] * (1 - evo.RUG_LIQ_DROP):
         return [("exit", "liquidity collapse")]
     if price < prev * (1 - evo.CRASH_TICK_PCT / 100):
         return [("exit", "crash exit")]
-    if L["ps_done"] and gross <= evo.COST_PCT:
-        return [("exit", "break-even stop after partial sell")]  # the rest can't turn the trade into a loss
+    if L.get("lock") is not None and gross <= L["lock"]:
+        return [("exit", f"profit-lock stop (kept +{L['lock']:.1f}%)")]
+    if L["ps_done"]:  # the half still running after the take-profit: only the profit lock can end it
+        return []
     if gross <= -arm["sl"]:
         return [("exit", "stop-loss")]
     if not L["added"]:
@@ -308,16 +341,11 @@ def step(L, arm, price, liq, now, buyers_lead, high_score) -> list:
         elif arm["add"] == "dip" and gross <= -arm["sl"] / 2 and high_score and liq >= L["liq"] * 0.95:
             L["added"] = True
             acts.append(("add", L["cost"] * 0.5))
-    frac, at = arm["ps"]
-    if frac and not L["ps_done"] and gross >= at:
-        L["ps_done"] = True
-        acts.append(("partial", frac))
     if gross >= arm["tp"]:
+        if arm["at_tp"] == "half":
+            L["ps_done"] = True
+            return acts + [("partial", 0.5)]
         return acts + [("exit", "take-profit")]
-    if (L["peak"] / avg - 1) * 100 >= 10 and price <= L["peak"] * 0.92:
-        return acts + [("exit", "trailing-stop")]
-    if now - L["ts"] >= arm["hold"] * 60:
-        return acts + [("exit", "max hold time")]
     return acts
 
 
@@ -337,21 +365,22 @@ def apply(L, act, price) -> float:
     return proceeds - basis
 
 
-# shadow legs are stored compactly: [cost, tokens, realized, ps_done, added, out]; the price path is shared
+# shadow legs are stored compactly: [cost, tokens, realized, ps_done, added, out, lock]; the price path is shared
 def simulate_tick(sh, price, liq, now, buyers_lead):
     """Run every exit plan of one shadow trade a tick forward."""
     for i, arm in enumerate(ARMS):
         leg = sh["legs"][i]
         if leg[5] is not None:
             continue
-        L = {"cost": leg[0], "tokens": leg[1], "realized": leg[2], "ps_done": leg[3], "added": leg[4],
+        L = {"cost": leg[0], "tokens": leg[1], "realized": leg[2], "ps_done": leg[3], "added": leg[4], "lock": leg[6],
              "peak": sh["peak"], "last": sh["last"], "liq": sh["liq"], "ts": sh["ts"]}
         out = None
         for act in step(L, arm, price, liq, now, buyers_lead, sh["score"] >= HIGH_SCORE):
             apply(L, act, price)
             if act[0] == "exit":
                 out = round(L["realized"] * 100, 2)  # % of the first buy (1 dollar)
-        sh["legs"][i] = [round(L["cost"], 6), round(L["tokens"], 6), round(L["realized"], 6), L["ps_done"], L["added"], out]
+        sh["legs"][i] = [round(L["cost"], 6), round(L["tokens"], 6), round(L["realized"], 6), L["ps_done"], L["added"],
+                         out, None if L["lock"] is None else round(L["lock"], 2)]
     sh["last"], sh["peak"] = price, max(sh["peak"], price)
 
 
@@ -374,9 +403,14 @@ def choose(T, done):
 
 
 def plan_txt(arm) -> str:
-    ps = f", sell {arm['ps'][0]:.0%} at +{arm['ps'][1]}%" if arm["ps"][0] else ""
+    at = "sell all" if arm["at_tp"] == "all" else "sell half, let the rest run"
     add = {"none": "", "strength": ", double buy on strength", "dip": ", double buy on a dip"}[arm["add"]]
-    return f"TP +{arm['tp']}%, SL -{arm['sl']}%{ps}{add}, max {arm['hold']} min"
+    return f"TP +{arm['tp']}% ({at}), SL -{arm['sl']}%, rising profit lock{add}, no time limit"
+
+
+def mark(leg, price) -> float:
+    """A shadow leg still open, valued at the market price (% of the first $1 buy)."""
+    return round((leg[2] + leg[1] * price * (1 - FEE / 100) - leg[0]) * 100, 2)
 
 
 # ---------- Notion ----------
@@ -439,7 +473,9 @@ async def manage_position(g, S, tid, T, pc, now):
         T["usd"] += basis + got
         T["pnl"] += got
         if act[0] == "partial":
-            await row(g, tid, T, "Partial sell", P["name"], price, basis, f"sold {frac:.0%} at +{arm['ps'][1]}%", pnl=got)
+            await row(g, tid, T, "Partial sell", P["name"], price, basis,
+                      f"sold {frac:.0%} at the +{arm['tp']}% take-profit; the rest runs with a profit-lock stop at "
+                      f"+{P['leg']['lock']:.1f}% that only moves up", pnl=got)
             continue
         whole = P["leg"]["realized"]
         pct = whole / P["base"] * 100
@@ -508,6 +544,10 @@ async def tick(g, S, pc):
         m5 = (p.get("txns") or {}).get("m5") or {}
         simulate_tick(sh, price, float((p.get("liquidity") or {}).get("usd", 0) or 0), now,
                       m5.get("buys", 0) > m5.get("sells", 0))
+        if now - sh["ts"] >= SHADOW_MAX_H * 3600:  # learning can't wait forever: score what's left at the market
+            for leg in sh["legs"]:
+                if leg[5] is None:
+                    leg[5] = mark(leg, price)
         if all(leg[5] is not None for leg in sh["legs"]):
             finish_shadow(S, mint, sh, now)
             del L["shadows"][mint]
@@ -556,7 +596,7 @@ async def research_next(g, S, pc):
         leg = new_leg(price, 1.0, liq, now)
         L["shadows"][mint] = {"ts": now, "f": vec(R["f"]), "flags": flags, "score": round(sc, 3), "last": price,
                               "peak": price, "liq": liq,
-                              "legs": [[leg["cost"], leg["tokens"], 0.0, False, False, None] for _ in ARMS]}
+                              "legs": [[leg["cost"], leg["tokens"], 0.0, False, False, None, None] for _ in ARMS]}
         name = auto.token_name(a, mint)
         held = any(T["pos"] and T["pos"]["mint"] == mint for T in TT.values())
         free = [tid for tid, T in TT.items() if T["pos"] is None and T["usd"] > 1]
