@@ -44,7 +44,8 @@ TARGET_WR = float(os.getenv("EVO_TARGET_WINRATE", "0.35"))
 REQ_WR = min(TARGET_WR, PROVEN_WR)  # win rate every check demands (lower either setting to relax it)
 CHECK_1 = int(os.getenv("EVO_CHECK_1", "5"))        # first profitability check (closed trades)
 EVAL_AFTER = CHECK_2 = int(os.getenv("EVO_CHECK_2", "10"))  # second check, same requirements; passing it graduates to validation
-MAX_PER_TOKEN = int(os.getenv("EVO_MAX_PER_TOKEN", "3"))    # max bots in one token at once (diversification, Notion load)
+# max bots in one token at once; 0 = no limit (owner, 2026-10-24). With no limit many bots can lose on one coin at once
+MAX_PER_TOKEN = int(os.getenv("EVO_MAX_PER_TOKEN", "0")) or 10 ** 9
 KEEP_RETIRED = max(150, POP // 2)
 VAL_TRADES = int(os.getenv("EVO_VAL_TRADES", "30"))
 VAL_CHECK = int(os.getenv("EVO_VAL_CHECK", "5"))     # early check inside validation (same requirements)
@@ -623,6 +624,33 @@ def grow(S, events):
         new_variant(S, gn, par["gen"] + 1, par["id"], [f"strongest-genes batch: child of {par['id']}"] + notes)
     events.append(f"🆕 +{add} bots bred from the strongest genes ({', '.join(p['id'] for p in parents)}). "
                   f"Population now {pop_target(S)}" + (f" (ceiling {GROW_MAX})." if pop_target(S) >= GROW_MAX else "."))
+
+
+CLONE_ID = os.getenv("EVO_CLONE_ID", "v1092")  # the only one of the strongest bots in profit (2026-10-24 12:15 UTC)
+
+
+def clone_best(S, events):
+    """One-off (owner, 2026-10-24): every bot gets CLONE_ID's genes, each slightly different (every numeric gene
+    nudged by up to 8%), so they explore just around them. CLONE_ID itself stays; every other active bot is retired
+    (open trades are finished first) and replaced. Replaces the strongest-genes rebuild, which is skipped."""
+    if S.get("cloned_best"):
+        return
+    best = S["variants"].get(CLONE_ID)
+    if not best or best["status"] == "retired":
+        best = (strongest(S) or [None])[0]
+    if not best:
+        return
+    now = S["cloned_best"] = time.time()
+    S.setdefault("replaced_strong", now)
+    old = [v for v in active(S) if v is not best]
+    for v in old:
+        v["status"], v["reason"] = "retired", f"replaced by a copy of {best['id']}"
+    for _ in old:
+        gn = {k: (float(x) * random.uniform(0.92, 1.08) if isinstance(x, (int, float)) and not isinstance(x, bool) and x
+                  else x) for k, x in best["genome"].items()}
+        new_variant(S, clamp(gn), best["gen"] + 1, best["id"], [f"copy of {best['id']} (slightly different)"])
+    events.append(f"🆕 All bots now carry {best['id']}'s genes, each slightly different ({len(old)} replaced). "
+                  f"No limit on bots per coin. Still Momentum v3.1.")
 
 
 def replace_with_strongest(S, events):
@@ -1317,7 +1345,7 @@ async def open_position(g, v, mint, p, a, age, size_usd, ex, recovery=False):
     size_tokens = size_usd / fill
     ts = time.time()
     kind = " | recovery trade" if recovery else ""
-    page_id, _ = await asyncio.gather(auto.n_create(g, auto.DB_OPEN, {
+    open_row = {
         "Token": auto._title(name), "Mint": auto._text(mint), "Entry Time": auto._date(ts),
         "Entry Price (USD)": auto._num(fill), "Current Price (USD)": auto._num(price),
         "Size (Tokens)": auto._num(size_tokens), "Cost Basis (USD)": auto._num(size_usd),
@@ -1327,15 +1355,14 @@ async def open_position(g, v, mint, p, a, age, size_usd, ex, recovery=False):
         "Mode": auto._sel("Paper"),
         "Notes": auto._text(f"Variant {v['id']} gen{v['gen']} | age "
                             f"{'?' if age is None else f'{age:.0f}m'} | TP {ex['tp']:.1f}% SL {ex['sl']}% "
-                            f"trail {ex['trail']}% hold {ex['hold']}m{kind}")}),
-        auto.n_create(g, auto.DB_EVENTS, {
-        "Event": auto._title(f"Entry {name} [{v['id']}]"), "Type": auto._sel("Entry"),
-        "Token": auto._text(name), "Time": auto._date(ts), "Price (USD)": auto._num(fill),
-        "Mode": auto._sel("Paper")}))
+                            f"trail {ex['trail']}% hold {ex['hold']}m{kind}")}
+    event_row = {"Event": auto._title(f"Entry {name} [{v['id']}]"), "Type": auto._sel("Entry"),
+                 "Token": auto._text(name), "Time": auto._date(ts), "Price (USD)": auto._num(fill),
+                 "Mode": auto._sel("Paper")}
     v["positions"][mint] = {"name": name, "entry_price": fill, "entry_liq": liq, "ts": ts,
                             "cost_usd": size_usd, "size_tokens": size_tokens, "score": a["score"],
                             "holders": a["holders"], "top10": a["top10"], "tp": ex["tp"], "sl": ex["sl"],
-                            "hold": ex["hold"], "trail": ex["trail"], "page_id": page_id,
+                            "hold": ex["hold"], "trail": ex["trail"], "page_id": None,
                             "lock_pull": ex["lock_pull"], "stall": ex["stall"],
                             "feat": features(p, a, age), "peak_price": fill, "last_price": price,
                             "recovery": recovery, "ps_frac": ex.get("ps_frac", 0), "ps_at": ex.get("ps_at", 0),
@@ -1343,6 +1370,25 @@ async def open_position(g, v, mint, p, a, age, size_usd, ex, recovery=False):
                             "m31": bool(ex.get("m31")), "lock": None}
     v["cooldown"][mint] = ts
     v["last_entry"] = ts
+    pos = v["positions"][mint]
+    # Notion rows are written in the background at a steady pace: with no limit on bots per coin, dozens of entries
+    # can arrive in one scan, and waiting for Notion there would delay every bot's exits
+    task = asyncio.create_task(_journal_entry(g, pos, open_row, event_row))
+    _BG.add(task)
+    task.add_done_callback(_BG.discard)
+
+
+_BG: set = set()
+_NOTION_SLOTS: list = []  # one asyncio.Semaphore, made inside the running loop
+
+
+async def _journal_entry(g, pos, open_row, event_row):
+    if not _NOTION_SLOTS:
+        _NOTION_SLOTS.append(asyncio.Semaphore(2))
+    async with _NOTION_SLOTS[0]:
+        page_id, _ = await asyncio.gather(auto.n_create(g, auto.DB_OPEN, open_row), auto.n_create(g, auto.DB_EVENTS, event_row))
+        pos["page_id"] = page_id
+        await asyncio.sleep(0.35)  # Notion allows about 3 requests a second
 
 
 def last_entry(v) -> float:
@@ -1555,7 +1601,8 @@ async def run(tb, g, loop_seconds: int):
     restart_population(S, events)  # fresh population (done once); Momentum v2, partial-sell test and Sprint stay off
     fix_age_windows(S, events)     # 4 h minimum back: give the fresh bots real max-age windows again
     introduce_momentum31(S, events)
-    replace_with_strongest(S, events)  # one-off: every bot from the strongest genes (before this hour's batch)
+    clone_best(S, events)              # one-off: every bot a slightly different copy of v1092
+    replace_with_strongest(S, events)  # one-off: every bot from the strongest genes (skipped once cloned)
     grow(S, events)  # 20 children of the strongest bots, once an hour
     ensure_population(S, events)
     pc: dict = {}
@@ -1615,4 +1662,6 @@ async def run(tb, g, loop_seconds: int):
             if t:
                 t.cancel()
         await asyncio.gather(*(t for t in (tg, tr, family, cumfix) if t), return_exceptions=True)
+        if _BG:  # let queued Notion entry rows finish (bounded), so trades opened at the end keep their rows
+            await asyncio.wait(list(_BG), timeout=60)
         save(S)
