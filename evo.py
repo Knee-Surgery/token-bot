@@ -110,7 +110,8 @@ LAUNCH_SLIP = float(os.getenv("EVO_LAUNCH_SLIP_PCT", "3"))            # paper pe
 
 SCHEMA = 4  # bump to restart all variants from fresh seeds when the rules change
 BOUNDS = {"tp": (45, 300), "sl": (1.5, 8), "hold": (1, 15), "trail": (3, 30), "size_frac": (0.1, 0.5),
-          "target_usd": (0.2, 1.5), "max_age_min": (HARD_MIN_AGE + 15, 10080),
+          # max token age: at least 4 h above the hard minimum, so every bot has a real window of coins to buy
+          "target_usd": (0.2, 1.5), "max_age_min": (HARD_MIN_AGE + 240, 10080),
           "min_holders": (HARD_MIN_HOLDERS, 10000), "max_top10": (10, HARD_MAX_TOP10 - 1),
           "min_liq": (HARD_MIN_LIQ, 200000),
           "min_score": (0, 90), "min_m5": (0, 15), "max_m5": (3, 1000), "min_txns": (0, 200),
@@ -171,6 +172,24 @@ def introduce_strategy(S, events):
         new_variant(S, momentum_genome(), 0, None, ["Momentum v2 strategy"])
     if swap:
         events.append(f"🆕 New strategy live: {len(swap)} bots switched to Momentum v2.")
+
+
+def fix_age_windows(S, events):
+    """One-off repair: raising the hard minimum age to 4 h clamped 204 bots' max token age to 255 min, a 15-minute
+    window (240-255 min) that almost no coin passes through, so they hardly traded (25 trades vs 160 for the rest).
+    Give each bot whose window is under 4 h a fresh max age between 8 h and any age (log-uniform), so evolution can
+    find what works."""
+    if S.get("age_fix"):
+        return
+    S["age_fix"] = time.time()
+    fixed = 0
+    for v in S["variants"].values():
+        if v["status"] != "retired" and v["genome"]["max_age_min"] <= HARD_MIN_AGE + 240:  # load() already clamped 255 up to here
+            v["genome"]["max_age_min"] = round(math.exp(random.uniform(math.log(HARD_MIN_AGE + 240), math.log(ANY_AGE))))
+            v["genome"] = clamp(v["genome"])
+            fixed += 1
+    if fixed:
+        events.append(f"🆕 Fix: {fixed} bots had a tiny token-age window and could barely trade. They now trade normally.")
 
 
 def introduce_partial_test(S, events):
@@ -1163,6 +1182,7 @@ async def run(tb, g, loop_seconds: int):
     ensure_population(S, events)
     introduce_strategy(S, events)
     introduce_partial_test(S, events)
+    fix_age_windows(S, events)
     pc: dict = {}
     start = time.time()
     last_scan = last_mon = last_clean = last_goal = last_save = 0.0
