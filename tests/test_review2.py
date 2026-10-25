@@ -64,7 +64,24 @@ f = evo.founders(S)[0]
 f["closed"] = [{"mint": "GTA", "pnl_pct": -17.7, "pnl_usd": -0.5, "win": False, "why": "stop-loss", "ts": now - 900, "name": "GTA"}]
 f["positions"] = {M: {"ts": now - 60}}
 evo.introduce_v33(S, [])
+evo.founder_records_v33(S)
 check(f["closed"] == [] and len(f["closed_pre"]) == 1 and f["positions"][M].get("pre"), "earlier trades -> closed_pre, open ones marked")
+evo.founder_records_v33(S); check(len(f["closed_pre"]) == 1, "runs once")
+# run #197: v3.3 went live on code without the reset; founders then traded under v3.3 before the reset ran
+S2 = evo.load(); S2.pop("x1_rec33", None)
+S2["m33"] = now - 1800
+f2 = evo.founders(S2)[0] if evo.founders(S2) else None
+if f2:
+    f2["closed"] = [{"mint": "OLD", "pnl_usd": -0.5, "ts": now - 2000, "entry_ts": now - 2400},
+                    {"mint": "NEW", "pnl_usd": 0.3, "ts": now - 600, "entry_ts": now - 900}]
+    f2["closed_pre"] = []
+    f2["positions"] = {"A": {"ts": now - 2500}, "B": {"ts": now - 100}}
+    evo.founder_records_v33(S2)
+    check([t["mint"] for t in f2["closed"]] == ["NEW"] and [t["mint"] for t in f2["closed_pre"]] == ["OLD"]
+          and f2["positions"]["A"].get("pre") and not f2["positions"]["B"].get("pre"),
+          "late reset: only trades opened before v3.3 went live move; v3.3 trades stay in the record")
+else:
+    check(False, "live state has founders")
 check(evo.founders(S)[1]["closed"] == [] and S["x1_founders"] > now - 60, "the redesign time is recorded (not the old cross's)")
 async def close_it():
     pos = dict(f["positions"][M], name="C", entry_price=1.0, entry_liq=80000, cost_usd=1.0, size_tokens=1.0, orig_cost=1.0,

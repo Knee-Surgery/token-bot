@@ -278,13 +278,6 @@ def introduce_v33(S, events):
         if v.get("founder") and v.get("line") == LINE:
             _, _, _, ps, step, frac = X1_DESIGN[int(v["id"].split("-")[1]) - 1]
             gn.update(ps_at=ps, ps_step=step, ps_frac=frac)
-            # the founders are ranked for the owner's pick: their record starts with v3.3, so it only holds trades
-            # made with their founder genes and the v3.3 exits. Earlier trades (some made before the redesign, under
-            # the v2171 x v1844 cross) and trades still open from before go to closed_pre; their money still counts
-            v["closed_pre"] = v.get("closed_pre", []) + v["closed"]
-            v["closed"] = []
-            for pos in v["positions"].values():
-                pos["pre"] = True
         else:
             gn.update(ps_at=round(random.uniform(10, 30), 1), ps_step=round(random.uniform(10, 30), 1),
                       ps_frac=random.choice((0.25, 0.5)))
@@ -293,6 +286,27 @@ def introduce_v33(S, events):
     events.append(f"🆕 v3.3 live for {len(active(S))} bots: profit is only taken once the whole trade nets "
                   f"+{MIN_TP_NET:g}% (partial sells allowed from any profit, as many as the price allows); protective "
                   f"floors at +{FLOOR_HI:g}% and 0%; every trade now counts in testing (8% rule dropped).")
+
+
+def founder_records_v33(S):
+    """One-off: the founders are ranked for the owner's pick, so their records start when v3.3 went live (S["m33"])
+    and only hold trades made with their founder genes and the v3.3 exits. Trades opened before (some even before the
+    redesign, under the v2171 x v1844 cross) move to closed_pre, and positions still open from before are marked so
+    they close into closed_pre too; their money still counts (paper funds, totals, ledger). Separate from
+    introduce_v33 so it also runs when v3.3 went live on code without it (run #197); trades opened after S["m33"]
+    stay in the record either way."""
+    if S.get("x1_rec33") or not S.get("m33"):
+        return
+    S["x1_rec33"] = time.time()
+    t0 = S["m33"]
+    for v in founders(S):
+        pre = [t for t in v["closed"] if (t.get("entry_ts") or t["ts"]) < t0]
+        if pre:
+            v["closed_pre"] = v.get("closed_pre", []) + pre
+            v["closed"] = [t for t in v["closed"] if (t.get("entry_ts") or t["ts"]) >= t0]
+        for pos in v["positions"].values():
+            if pos.get("ts", 0) < t0:
+                pos["pre"] = True
 
 
 def coin_trades(S, mint, now, hours) -> list:
@@ -2141,6 +2155,7 @@ async def run(tb, g, loop_seconds: int):
     crossbreed(S, events)              # one-off: line X1, 10 founders with different genes
     cut_population(S, events)          # one-off: 50 main bots + the line
     introduce_v33(S, events)           # one-off: 25% minimum take-profit, partial-sell ladder, protective floors
+    founder_records_v33(S)             # one-off: founders' records start with v3.3 (earlier trades -> closed_pre)
     grow(S, events)  # 20 children of the strongest bots, once an hour (off once the population is capped)
     ensure_population(S, events)
     pc: dict = {}
