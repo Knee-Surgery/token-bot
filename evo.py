@@ -237,7 +237,7 @@ def inherit_arm(S, v):
     group's range (mutation may move it within the range, never across), so the A/B comparison stays clean."""
     par = S["variants"].get(v.get("parent") or "")
     arm = par.get("m5_arm") if par else None
-    if arm not in M32_ARMS:
+    if arm not in M32_ARMS or v.get("line"):  # breeding lines (X1) keep their own windows, outside the test
         return
     lo, hi = M32_ARMS[arm]
     gn = v["genome"]
@@ -592,18 +592,33 @@ def mutate(parent: dict, S: dict):
     return clamp(gn), notes
 
 
-def new_variant(S, genome, gen, parent, notes):
-    vid = f"v{S['next_id']}"
-    S["next_id"] += 1
+def new_variant(S, genome, gen, parent, notes, line=None):
+    par = S["variants"].get(parent or "")
+    line = line or (par.get("line") if par else None)  # children of a breeding line stay in it
+    if line:
+        S.setdefault("line_next", {})
+        S["line_next"][line] = S["line_next"].get(line, 0) + 1
+        vid = f"{line}-{S['line_next'][line]:02d}"
+    else:
+        vid = f"v{S['next_id']}"
+        S["next_id"] += 1
     v = {"id": vid, "gen": gen, "parent": parent, "genome": genome, "notes": notes, "status": "testing",
          "reason": "", "paper_usd": START_USD, "start_usd": START_USD, "positions": {}, "closed": [],
          "cooldown": {}, "created": time.time(), "val_start": 0}
+    if line:
+        v["line"] = line
     S["variants"][vid] = v
     inherit_arm(S, v)  # children stay in their parent's v3.2 entry-test group
     return v
 
 
 def spawn(S) -> tuple[dict, str]:
+    if S.get("cross_bred"):  # selective breeding: new bots only from the X1 line
+        parent = line_parent(S)
+        if parent:
+            gn, notes = mutate(parent, S)
+            v = new_variant(S, gn, parent["gen"] + 1, parent["id"], notes)
+            return v, f"{v['id']} gen{v['gen']} from {parent['id']}: " + "; ".join(notes)
     seeds_used = S["next_id"] - 1
     if seeds_used < len(SEEDS):
         v = new_variant(S, clamp(SEEDS[seeds_used]), 0, None, ["seed"])
@@ -691,6 +706,8 @@ GROW_PARENTS = 5
 
 
 def pop_target(S) -> int:
+    if S.get("pop_cap"):  # set by the owner (cut_population): a fixed size
+        return S["pop_cap"]
     return min(GROW_MAX, POP + S.get("grown", 0))
 
 
@@ -715,7 +732,7 @@ def strongest(S, n=GROW_PARENTS) -> list:
 def grow(S, events):
     """Once an hour: GROW_PER_HOUR children of the strongest bots (mutated, so they explore around the best genes)."""
     now = time.time()
-    if GROW_PER_HOUR <= 0 or now - S.get("last_grow", 0) < 3600 or pop_target(S) >= GROW_MAX:
+    if GROW_PER_HOUR <= 0 or S.get("pop_cap") or now - S.get("last_grow", 0) < 3600 or pop_target(S) >= GROW_MAX:
         return
     parents = strongest(S)
     if not parents:
@@ -729,6 +746,90 @@ def grow(S, events):
         new_variant(S, gn, par["gen"] + 1, par["id"], [f"strongest-genes batch: child of {par['id']}"] + notes)
     events.append(f"🆕 +{add} bots bred from the strongest genes ({', '.join(p['id'] for p in parents)}). "
                   f"Population now {pop_target(S)}" + (f" (ceiling {GROW_MAX})." if pop_target(S) >= GROW_MAX else "."))
+
+
+# selective breeding (owner, 2026-10-25): line X1 is bred from v2171 ("good at analysis": its entry and safety
+# genes) and v1844 ("good at execution": its exit and stake genes), the two most consistently profitable bots with 5+
+# trades. Under Momentum v3.2 only the 5 m window, min liquidity, stop-loss, partial-sell level and stake are used
+# (the two are near-copies there); the other genes are crossed too, for when the momentum rules are switched off.
+# From then on new bots come only from this line (spawn, breed_proven); the main bots phase out as they retire.
+CROSS_PARENTS = ("v2171", "v1844")
+LINE = "X1"
+ANALYSIS_GENES = ("min_m5", "max_m5", "min_liq", "min_holders", "max_top10", "min_vol_h1", "max_age_min", "min_txns",
+                  "min_score")  # what to buy; every other gene is execution (exits, stake)
+# each parent's own v3.1 entry window (before v3.2 set both to +8-15%), from their notes
+CROSS_WINDOWS = {"v3.2 +8-15%": (8.0, 15.0), "v2171's own +3.4-13.7%": (3.4, 13.7), "v1844's own +5.6-12.1%": (5.6, 12.1)}
+POP_CAP = int(os.getenv("EVO_POP_CAP", "60"))  # owner: 50 main bots + the 10 of the line
+
+
+def line_parent(S):
+    """Best bot of the line by fitness (5+ counted trades), else a random live one, else the best retired one."""
+    L = [v for v in S["variants"].values() if v.get("line") == LINE]
+    live = [v for v in L if v["status"] != "retired"]
+    scored = [v for v in live if len(test_trades(v)) >= 5]
+    if scored:
+        return max(scored, key=fitness)
+    if live:
+        return random.choice(live)
+    return max(L, key=fitness) if L else None
+
+
+def crossbreed(S, events):
+    """One-off: 10 bots of line X1 from CROSS_PARENTS. 1-5: one parent's analysis genes with the other's execution
+    genes, under each entry window; 6-10: every gene from either parent or their midpoint, at random."""
+    if S.get("cross_bred"):
+        return
+    A, B = (S["variants"].get(i) for i in CROSS_PARENTS)
+    if not A or not B:
+        return
+    S["cross_bred"] = time.time()
+    rnd = random.Random(2171 * 1844)
+    keys = list(dict.fromkeys(list(A["genome"]) + list(B["genome"])))
+    W = list(CROSS_WINDOWS)
+
+    def cross(an, ex, wname):
+        other = A if an is B else B
+        gn = {k: (an if k in ANALYSIS_GENES else ex)["genome"].get(k, other["genome"].get(k)) for k in keys}
+        gn["min_m5"], gn["max_m5"] = CROSS_WINDOWS[wname]
+        return gn, f"cross: {an['id']} analysis x {ex['id']} execution, entry {wname}"
+
+    plans = [cross(A, B, W[0]), cross(A, B, W[1]), cross(A, B, W[2]), cross(B, A, W[0]), cross(B, A, W[1])]
+    for _ in range(5):
+        gn = {}
+        for k in keys:
+            a, b = A["genome"].get(k), B["genome"].get(k)
+            pick = rnd.random()
+            num = isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool)
+            gn[k] = (a + b) / 2 if num and pick < 1 / 3 else a if pick < 2 / 3 or b is None else b
+        wname = rnd.choice(W)
+        gn["min_m5"], gn["max_m5"] = CROSS_WINDOWS[wname]
+        plans.append((gn, f"cross: each gene from {A['id']}, {B['id']} or their midpoint, entry {wname}"))
+    made = []
+    for gn, note in plans:
+        v = new_variant(S, clamp(gn), max(A["gen"], B["gen"]) + 1, A["id"], [note], line=LINE)
+        v["genome"] = clamp(gn)       # the window as designed (not clamped into the parent's A/B-test group)
+        v.pop("m5_arm", None)         # not part of the +3-5% / +8-15% test: its own group
+        v["parent2"] = B["id"]
+        made.append(v["id"])
+    events.append(f"🧬 Line {LINE} bred: {len(made)} bots ({made[0]} to {made[-1]}) from {A['id']} (analysis) x "
+                  f"{B['id']} (execution). From now on new bots come only from this line.")
+
+
+def cut_population(S, events):
+    """One-off (owner): keep the best main bots (v2171 and v1844 always) so that, with the line, the population is
+    POP_CAP; retire the rest (open trades finish first)."""
+    if S.get("pop_cut") or not S.get("cross_bred"):
+        return
+    S["pop_cut"] = time.time()
+    S["pop_cap"] = POP_CAP
+    main = [v for v in active(S) if not v.get("line")]
+    keep_n = max(0, POP_CAP - sum(1 for v in active(S) if v.get("line")))
+    rank = sorted(main, key=lambda v: (v["id"] in CROSS_PARENTS, len(test_trades(v)) >= 5, fitness(v),
+                                       sum(t["pnl_usd"] for t in v["closed"]), random.random()), reverse=True)
+    for v in rank[keep_n:]:
+        v["status"], v["reason"] = "retired", f"population cut to {keep_n} main bots + line {LINE} (owner)"
+    events.append(f"🧬 Population cut: {min(keep_n, len(rank))} main bots kept, {max(0, len(rank) - keep_n)} retired "
+                  f"(open trades finish first). Cap {POP_CAP}: replacements are bred from line {LINE}.")
 
 
 CLONE_ID = os.getenv("EVO_CLONE_ID", "v1092")  # the only one of the strongest bots in profit (2026-10-24 12:15 UTC)
@@ -846,7 +947,8 @@ def breed_proven(S, v, events):
     level = (n >= CHECK_1) + (n >= CHECK_2) + max(0, (n - CHECK_2) // 10)
     v["proven"] = True
     while (v.get("bred_lvl", 0) < level and v["status"] != "retired"
-           and len(active(S)) < max(MAX_POP, int(pop_target(S) * 1.3))):
+           and (not S.get("cross_bred") or v.get("line"))  # only the X1 line breeds now
+           and len(active(S)) < (int(S["pop_cap"] * 1.3) if S.get("pop_cap") else max(MAX_POP, int(pop_target(S) * 1.3)))):
         v["bred_lvl"] = v.get("bred_lvl", 0) + 1
         gn, notes = mutate(v, S)
         ch = new_variant(S, gn, v["gen"] + 1, v["id"], ["bred from proven " + v["id"]] + notes)
@@ -1650,23 +1752,38 @@ async def recovery_trades(g, S, pc, free, ok_tokens):
 
 
 # ---------- reporting ----------
+def _lb_row(v) -> str:
+    c = v["closed"]
+    n, w = len(c), sum(1 for t in c if t["win"])
+    wr = f"{w/n:.0%}" if n else "-"
+    return (f"{v['id']} g{v['gen']} {v['status'][:4]}: {w}/{n} ({wr}), {sum(t['pnl_usd'] for t in c):+.2f} USD"
+            f"{', OPEN' if v['positions'] else ''}")
+
+
+def line_summary(S) -> str | None:
+    """One line for the menu and the hourly summary: the X1 line's size, trades and P&L so far."""
+    L = [v for v in S["variants"].values() if v.get("line") == LINE]
+    if not L:
+        return None
+    T = [t for v in L for t in v["closed"]]
+    return (f"🧬 Line {LINE}: {sum(1 for v in L if v['status'] != 'retired')} bots, {len(T)} trades, "
+            f"{sum(1 for t in T if t['pnl_usd'] > 0)} won, {sum(t['pnl_usd'] for t in T):+.2f} USD")
+
+
 def leaderboard(S) -> str:
     live = [v for v in S["variants"].values() if v["status"] != "retired"]
     live.sort(key=lambda x: -fitness(x))
-    rows = []
-    for v in live[:25]:
-        c = v["closed"]
-        n, w = len(c), sum(1 for t in c if t["win"])
-        wr = f"{w/n:.0%}" if n else "-"
-        rows.append(f"{v['id']} g{v['gen']} {v['status'][:4]}: {w}/{n} ({wr}), {sum(t['pnl_usd'] for t in c):+.2f} USD"
-                    f"{', OPEN' if v['positions'] else ''}")
+    line = [v for v in live if v.get("line")]
+    rows = ([f"🧬 LINE {LINE} ({' x '.join(CROSS_PARENTS)}):"] + [_lb_row(v) for v in line] + ["", "Main bots:"]
+            if line else [])
+    rows += [_lb_row(v) for v in [v for v in live if not v.get("line")][:25 - min(len(line), 15)]]
     by = Counter(v["status"] for v in live)
     retired = sum(1 for v in S["variants"].values() if v["status"] == "retired") + S.get("retired_dropped", 0)
     validated = [v["id"] for v in S["variants"].values() if v["status"] == "validated"]
     traded = sum(1 for v in live if v["closed"])
     head = (f"EVO {'HALTED' if S['halted'] else 'running'} (paper)  {len(live)} bots: {by.get('testing', 0)} testing, "
             f"{by.get('validating', 0)} validating, {by.get('validated', 0)} validated; {traded} have traded\n"
-            f"Top 25 of {len(live)}:\n")
+            f"{'Line ' + LINE + ' and top main bots' if line else 'Top 25'} of {len(live)}:\n")
     rj = sorted(S.get("rejects", {}).items(), key=lambda kv: -kv[1])[:5]
     why = ("\nTop reasons tokens were rejected: " + "; ".join(f"{k} x{n}" for k, n in rj)) if rj else ""
     return (head + "\n".join(rows or ["no active variants"]) + f"\nRetired so far: {retired}"
@@ -1740,6 +1857,8 @@ async def flush(tb, g, S, events):
                 lines.append(f"Bots: {D['new']} new, {D['retired']} retired")
             lines += trainee.digest_lines(S, D)
             lines += bench.digest_lines(S)
+            if line_summary(S):
+                lines.append(line_summary(S))
             msgs.append("\n".join(lines))
         S["digest"] = None
     chunks = msgs
@@ -1838,7 +1957,9 @@ async def run(tb, g, loop_seconds: int):
     for v in active(S):                # bots bred before children inherited the label: their parent's group
         if not v.get("m5_arm"):
             inherit_arm(S, v)
-    grow(S, events)  # 20 children of the strongest bots, once an hour
+    crossbreed(S, events)              # one-off: line X1, 10 bots from v2171 x v1844
+    cut_population(S, events)          # one-off: 50 main bots + the line
+    grow(S, events)  # 20 children of the strongest bots, once an hour (off once the population is capped)
     ensure_population(S, events)
     pc: dict = {}
     start = time.time()

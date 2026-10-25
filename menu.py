@@ -64,6 +64,7 @@ def menu_text(S) -> str:
     return (f"🤖 Token Bot · Paper · {'⏸ Paused' if S['halted'] else '▶️ Running'}\n\n"
             + (f"💰 P&L: {usd(pnl)}\n" if pnl is not None else "")
             + f"🕕 Last {RECENT_H:g} h: {n6} trades, {usd(pnl6)}\n"
+            + (evo.line_summary(S) + "\n" if evo.line_summary(S) else "")
             + f"💼 Open trades: {open_n}\n{goal}")
 
 
