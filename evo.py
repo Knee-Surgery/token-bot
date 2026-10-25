@@ -31,6 +31,7 @@ from collections import Counter
 from pathlib import Path
 
 import auto
+import paths
 
 log = logging.getLogger("evo")
 STATE = Path("evo_state.json")
@@ -1461,6 +1462,7 @@ async def scan(g, S, pc, events):
                     del rs[k]
             continue
         ok_tokens.append((mint, p, a, age))
+        paths.mark(S, mint, p, a, "scan")  # follow its price for the benchmarks, bought or not
         if MOMENTUM and not m31_holders_ok(a):
             continue
         holders = [vv for vv in S["variants"].values() if mint in vv["positions"]]
@@ -1700,7 +1702,7 @@ async def flush(tb, g, S, events):
     """Keep Telegram readable at a glance: important alerts go out at once, routine bot activity (spawned, retired,
     proven, rug exits...) is only counted, and one short summary is sent every DIGEST_MIN minutes. Then the menu
     is moved back under the new messages."""
-    import menu, trainee
+    import menu, trainee, bench
     now = time.time()
     D = S.get("digest")
     if not D:
@@ -1737,6 +1739,7 @@ async def flush(tb, g, S, events):
             if D["new"] or D["retired"]:
                 lines.append(f"Bots: {D['new']} new, {D['retired']} retired")
             lines += trainee.digest_lines(S, D)
+            lines += bench.digest_lines(S)
             msgs.append("\n".join(lines))
         S["digest"] = None
     chunks = msgs
@@ -1843,8 +1846,10 @@ async def run(tb, g, loop_seconds: int):
     # Telegram runs in its own task with long polling, so taps and messages are answered within about a second
     # instead of waiting for the next 10 s tick and for slow scans / Notion writes to finish.
     tg = asyncio.create_task(menu.poll(tb, g, S, pc))
-    import trainee
+    import trainee, bench
     tr = asyncio.create_task(trainee.loop(g, S, pc))  # the intensely trained bot, beside the main loop
+    rec = asyncio.create_task(paths.loop(g, S, pc))   # price paths of every coin that passes the safety rules
+    vs = asyncio.create_task(bench.score_in_background(S))  # every bot replayed on the recorded coins (measurement only)
 
     async def _exits():  # exits never wait for a scan
         while True:
@@ -1900,10 +1905,10 @@ async def run(tb, g, loop_seconds: int):
                 break
             await asyncio.sleep(10)
     finally:
-        for t in (mon, tg, tr, family, cumfix):  # an unfinished correction simply continues next run
+        for t in (mon, tg, tr, rec, vs, family, cumfix):  # an unfinished correction simply continues next run
             if t:
                 t.cancel()
-        await asyncio.gather(*(t for t in (mon, tg, tr, family, cumfix) if t), return_exceptions=True)
+        await asyncio.gather(*(t for t in (mon, tg, tr, rec, vs, family, cumfix) if t), return_exceptions=True)
         if _BG:  # let queued Notion rows (entries, exits) finish, bounded well inside the job's 32-min timeout
             await asyncio.wait(list(_BG), timeout=180)
         save(S)

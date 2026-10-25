@@ -54,6 +54,7 @@ jobs:
           git config user.email "token-bot@users.noreply.github.com"
           git add -u
           if [ -f evo_state.json ]; then git add evo_state.json; fi
+          if [ -d paths ]; then git add -A paths; fi   # recorded price paths (new files; old ones pruned)
           git diff --cached --quiet || (git commit -m "state" && git pull --rebase && git push)
 
       - name: Start the next run

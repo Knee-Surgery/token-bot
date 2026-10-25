@@ -36,6 +36,7 @@ import asyncio, calendar, logging, math, os, re, time
 
 import auto
 import evo
+import paths
 
 log = logging.getLogger("trainee")
 
@@ -587,6 +588,8 @@ async def research_next(g, S, pc):
             a.update({k: rc[k] for k in ("mint_auth", "freeze_auth", "rugged", "top1", "insider_pct", "creator_pct",
                                          "lp_locked", "fee_pct", "risks") if rc.get(k) is not None})
         ok, why = evo.rug_ok(a, p)
+        if ok:
+            paths.mark(S, mint, p, a, "trainee")  # follow its price for the benchmarks
         R = await research(g, mint, p)
         L["n_research"] += 1
         flags = R["flags"] + ([] if ok else [f"safety rule: {why}"])
