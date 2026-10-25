@@ -645,6 +645,8 @@ def active(S):
 
 
 def ensure_population(S, events):
+    if S.get("breed_hold"):  # line X1 founders under test: no new bots until the owner picks the next parents
+        return
     made = []
     while len(active(S)) < pop_target(S):
         v, desc = spawn(S)
@@ -748,18 +750,35 @@ def grow(S, events):
                   f"Population now {pop_target(S)}" + (f" (ceiling {GROW_MAX})." if pop_target(S) >= GROW_MAX else "."))
 
 
-# selective breeding (owner, 2026-10-25): line X1 is bred from v2171 ("good at analysis": its entry and safety
-# genes) and v1844 ("good at execution": its exit and stake genes), the two most consistently profitable bots with 5+
-# trades. Under Momentum v3.2 only the 5 m window, min liquidity, stop-loss, partial-sell level and stake are used
-# (the two are near-copies there); the other genes are crossed too, for when the momentum rules are switched off.
-# From then on new bots come only from this line (spawn, breed_proven); the main bots phase out as they retire.
-CROSS_PARENTS = ("v2171", "v1844")
+# selective breeding (owner, 2026-10-25): line X1 starts from 10 founders, generation 1, with deliberately different
+# genes, so their trades show which settings work. (A first plan crossed v2171 x v1844, but under Momentum v3.2 those
+# two are near-copies in every gene that is used, so it would have made 10 copies of one strategy.) The genes that
+# decide v3.2 trades are spread over their whole usable range: 5 m momentum window (3-15%), minimum liquidity
+# ($30k-150k), stop-loss (6-8%) and partial-sell level (+20-25%); each level is used about equally often and every
+# founder has its own window. The stake is the same for all (31%), so their dollar results compare directly. The
+# genes v3.2 ignores are spread at random within their bounds, for when the momentum rules are switched off.
+# Until the owner picks the 2 parents of the next generation (after about 15-30 trades each), the founders are never
+# retired by the checks, they get first pick of the per-coin slots, and no new bots are bred (breed_hold).
+CROSS_PARENTS = ("v2171", "v1844")  # the two kept through the population cut
 LINE = "X1"
-ANALYSIS_GENES = ("min_m5", "max_m5", "min_liq", "min_holders", "max_top10", "min_vol_h1", "max_age_min", "min_txns",
-                  "min_score")  # what to buy; every other gene is execution (exits, stake)
-# each parent's own v3.1 entry window (before v3.2 set both to +8-15%), from their notes
-CROSS_WINDOWS = {"v3.2 +8-15%": (8.0, 15.0), "v2171's own +3.4-13.7%": (3.4, 13.7), "v1844's own +5.6-12.1%": (5.6, 12.1)}
 POP_CAP = int(os.getenv("EVO_POP_CAP", "60"))  # owner: 50 main bots + the 10 of the line
+#            5 m window   min liq  stop-loss  partial sell
+X1_DESIGN = [((3, 5), 30000, 6.0, 20.0),
+             ((3, 8), 80000, 7.0, 25.0),
+             ((4, 7), 50000, 8.0, 22.5),
+             ((5, 8), 120000, 6.0, 25.0),
+             ((6, 10), 30000, 8.0, 20.0),
+             ((8, 12), 80000, 6.0, 22.5),
+             ((8, 15), 50000, 7.0, 20.0),
+             ((10, 15), 120000, 8.0, 25.0),
+             ((3, 15), 50000, 7.0, 22.5),
+             ((12, 15), 80000, 7.0, 20.0)]
+X1_STAKE = 0.31
+X1_READY = (15, 30)  # trades each founder needs before the owner is told the ranking (15 first, again at 30)
+
+
+def founders(S) -> list:
+    return sorted((v for v in S["variants"].values() if v.get("founder") and v.get("line") == LINE), key=lambda v: v["id"])
 
 
 def line_parent(S):
@@ -774,45 +793,65 @@ def line_parent(S):
     return max(L, key=fitness) if L else None
 
 
+def x1_genome(i: int) -> dict:
+    (lo, hi), liq, sl, ps = X1_DESIGN[i]
+    rnd = random.Random(f"X1-{i + 1}")  # the same founder every time this runs
+    gn = {k: (rnd.uniform(*b) if k not in OPTIONAL or rnd.random() < 0.5 else 0) for k, b in BOUNDS.items()}
+    gn.update(min_m5=float(lo), max_m5=float(hi), min_liq=float(liq), sl=sl, ps_at=ps, ps_frac=0.5, size_frac=X1_STAKE)
+    return clamp(gn)
+
+
 def crossbreed(S, events):
-    """One-off: 10 bots of line X1 from CROSS_PARENTS. 1-5: one parent's analysis genes with the other's execution
-    genes, under each entry window; 6-10: every gene from either parent or their midpoint, at random."""
-    if S.get("cross_bred"):
+    """One-off: the 10 founders of line X1 (X1_DESIGN). If an earlier version already made X1 bots, the first 10
+    get the founder genes in place (same ids, trade history cleared from testing) and any later X1 bots retire."""
+    if S.get("x1_founders"):
         return
-    A, B = (S["variants"].get(i) for i in CROSS_PARENTS)
-    if not A or not B:
-        return
-    S["cross_bred"] = time.time()
-    rnd = random.Random(2171 * 1844)
-    keys = list(dict.fromkeys(list(A["genome"]) + list(B["genome"])))
-    W = list(CROSS_WINDOWS)
-
-    def cross(an, ex, wname):
-        other = A if an is B else B
-        gn = {k: (an if k in ANALYSIS_GENES else ex)["genome"].get(k, other["genome"].get(k)) for k in keys}
-        gn["min_m5"], gn["max_m5"] = CROSS_WINDOWS[wname]
-        return gn, f"cross: {an['id']} analysis x {ex['id']} execution, entry {wname}"
-
-    plans = [cross(A, B, W[0]), cross(A, B, W[1]), cross(A, B, W[2]), cross(B, A, W[0]), cross(B, A, W[1])]
-    for _ in range(5):
-        gn = {}
-        for k in keys:
-            a, b = A["genome"].get(k), B["genome"].get(k)
-            pick = rnd.random()
-            num = isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool)
-            gn[k] = (a + b) / 2 if num and pick < 1 / 3 else a if pick < 2 / 3 or b is None else b
-        wname = rnd.choice(W)
-        gn["min_m5"], gn["max_m5"] = CROSS_WINDOWS[wname]
-        plans.append((gn, f"cross: each gene from {A['id']}, {B['id']} or their midpoint, entry {wname}"))
+    S["x1_founders"] = S["cross_bred"] = S.get("cross_bred") or time.time()
+    S["breed_hold"] = True
+    old = sorted((v for v in S["variants"].values() if v.get("line") == LINE), key=lambda v: v["id"])
     made = []
-    for gn, note in plans:
-        v = new_variant(S, clamp(gn), max(A["gen"], B["gen"]) + 1, A["id"], [note], line=LINE)
-        v["genome"] = clamp(gn)       # the window as designed (not clamped into the parent's A/B-test group)
-        v.pop("m5_arm", None)         # not part of the +3-5% / +8-15% test: its own group
-        v["parent2"] = B["id"]
+    for i in range(len(X1_DESIGN)):
+        (lo, hi), liq, sl, ps = X1_DESIGN[i]
+        note = f"X1 founder (gen 1): 5 m +{lo}-{hi}%, liquidity ${liq / 1000:.0f}k+, stop-loss {sl:g}%, half sold at +{ps:g}%"
+        if i < len(old):
+            v = old[i]
+            v.update(genome=x1_genome(i), gen=1, parent=None, notes=[note], status="testing", reason="")
+            v.pop("parent2", None)
+            v["val_start"] = len(v["closed"])
+        else:
+            v = new_variant(S, x1_genome(i), 1, None, [note], line=LINE)
+        v["founder"] = True
+        v.pop("m5_arm", None)  # not part of the +3-5% / +8-15% test
         made.append(v["id"])
-    events.append(f"🧬 Line {LINE} bred: {len(made)} bots ({made[0]} to {made[-1]}) from {A['id']} (analysis) x "
-                  f"{B['id']} (execution). From now on new bots come only from this line.")
+    for v in old[len(X1_DESIGN):]:
+        v["status"], v["reason"] = "retired", "made before the X1 founders were redesigned"
+    events.append(f"🧬 Line {LINE}: {len(made)} founder bots ({made[0]} to {made[-1]}), generation 1, each with "
+                  f"different genes (5 m windows from +3-5% to +12-15%, liquidity $30k-120k, stop-loss 6-8%, partial "
+                  f"sell +20-25%). They get first pick of trades and are not retired; no new bots are bred until you "
+                  f"pick the next 2 parents (after {X1_READY[0]}-{X1_READY[1]} trades each).")
+
+
+def founder_report(S, events):
+    """When every founder reaches X1_READY[0] closed trades (and again at X1_READY[1]): their ranking, once each."""
+    F = founders(S)
+    if not F or S.get("x1_picked"):
+        return
+    n_min = min(len(v["closed"]) for v in F)
+    for level in X1_READY:
+        key = f"x1_report_{level}"
+        if n_min < level or S.get(key):
+            continue
+        S[key] = time.time()
+        rows = []
+        for v in sorted(F, key=lambda v: -sum(t["pnl_usd"] for t in v["closed"])):
+            c = v["closed"]
+            w = sum(1 for t in c if t["pnl_usd"] > 0)
+            (lo, hi), liq, sl, ps = X1_DESIGN[int(v["id"].split("-")[1]) - 1]
+            rows.append(f"{v['id']}: {len(c)} trades, {w} won, {sum(t['pnl_usd'] for t in c):+.2f} USD, "
+                        f"{sum(t['pnl_pct'] for t in c) / len(c):+.1f}%/trade, {len({t['mint'] for t in c})} coins"
+                        f"  (+{lo}-{hi}%, ${liq / 1000:.0f}k, SL {sl:g}%, PS {ps:g}%)")
+        events.append(f"🧬 Line {LINE}: every founder has {level}+ trades. Ranking by profit:\n" + "\n".join(rows)
+                      + "\nTell me which 2 to breed the next generation from.")
 
 
 def cut_population(S, events):
@@ -938,6 +977,8 @@ def meets(w: list) -> tuple[bool, str]:
 def breed_proven(S, v, events):
     """Meets the requirements (win rate >= REQ_WR, net positive) after CHECK_1 trades: stays alive and breeds a
     mutated child; again at CHECK_2 and then every further 10 closed trades while it keeps meeting them."""
+    if S.get("breed_hold"):
+        return
     c = test_trades(v)
     n = len(c)
     if n < CHECK_1 or not meets(c)[0]:
@@ -959,6 +1000,8 @@ def breed_proven(S, v, events):
 
 
 def apply_judgement(S, v, events):
+    if v.get("founder") and not S.get("x1_picked"):
+        return  # X1 founders trade on until the owner picks; the checks don't retire them
     breed_proven(S, v, events)
     res = judge(v)
     if not res:
@@ -1492,7 +1535,8 @@ async def scan(g, S, pc, events):
         return
     now = time.time()
     for v in list(free):  # retire variants that never trade
-        if not v["closed"] and now - v["created"] > STALE_HOURS * 3600 and v["status"] == "testing":
+        if (not v["closed"] and now - v["created"] > STALE_HOURS * 3600 and v["status"] == "testing"
+                and not v.get("founder")):
             v["status"], v["reason"] = "retired", f"no trades in {STALE_HOURS}h (entry rules too tight)"
             events.append(f"RETIRED {v['id']} gen{v['gen']}: {v['reason']}")
             free.remove(v)
@@ -1574,6 +1618,7 @@ async def scan(g, S, pc, events):
             continue
 
         random.shuffle(wanting)
+        wanting.sort(key=lambda v: not v.get("founder"))  # X1 founders first, so they reach 15-30 trades sooner
         entered = []
         for v in wanting:
             sprint = bool(v.get("sprint"))
@@ -1756,8 +1801,10 @@ def _lb_row(v) -> str:
     c = v["closed"]
     n, w = len(c), sum(1 for t in c if t["win"])
     wr = f"{w/n:.0%}" if n else "-"
+    vt = v.get("virt") or {}
     return (f"{v['id']} g{v['gen']} {v['status'][:4]}: {w}/{n} ({wr}), {sum(t['pnl_usd'] for t in c):+.2f} USD"
-            f"{', OPEN' if v['positions'] else ''}")
+            f"{', OPEN' if v['positions'] else ''}"
+            + (f" | replay {vt['n']} trades {vt['avg']:+.1f}%" if v.get("line") and vt.get("n") else ""))
 
 
 def line_summary(S) -> str | None:
@@ -1774,7 +1821,7 @@ def leaderboard(S) -> str:
     live = [v for v in S["variants"].values() if v["status"] != "retired"]
     live.sort(key=lambda x: -fitness(x))
     line = [v for v in live if v.get("line")]
-    rows = ([f"🧬 LINE {LINE} ({' x '.join(CROSS_PARENTS)}):"] + [_lb_row(v) for v in line] + ["", "Main bots:"]
+    rows = ([f"🧬 LINE {LINE} (gen-1 founders, different genes):"] + [_lb_row(v) for v in line] + ["", "Main bots:"]
             if line else [])
     rows += [_lb_row(v) for v in [v for v in live if not v.get("line")][:25 - min(len(line), 15)]]
     by = Counter(v["status"] for v in live)
@@ -1957,7 +2004,7 @@ async def run(tb, g, loop_seconds: int):
     for v in active(S):                # bots bred before children inherited the label: their parent's group
         if not v.get("m5_arm"):
             inherit_arm(S, v)
-    crossbreed(S, events)              # one-off: line X1, 10 bots from v2171 x v1844
+    crossbreed(S, events)              # one-off: line X1, 10 founders with different genes
     cut_population(S, events)          # one-off: 50 main bots + the line
     grow(S, events)  # 20 children of the strongest bots, once an hour (off once the population is capped)
     ensure_population(S, events)
@@ -2011,7 +2058,7 @@ async def run(tb, g, loop_seconds: int):
                 if now - last_scan >= 20:
                     await scan(g, S, pc, events); last_scan = now
                 if now - last_goal >= 300:  # consistent-bot milestone and proof test
-                    milestone(S, events); grow(S, events); last_goal = now
+                    milestone(S, events); grow(S, events); founder_report(S, events); last_goal = now
                 if now - last_save >= 60:  # the file is only committed at the end of the run; once a minute is plenty
                     save(S); last_save = now
                 await flush(tb, g, S, events)
