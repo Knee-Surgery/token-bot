@@ -91,14 +91,24 @@ def _sel(x): return {"select": {"name": x}}
 def _url(x): return {"url": x or None}
 
 
+async def _notion(g, method, url, body):
+    """One Notion request, retried on 429 (Retry-After) so busy moments don't silently drop journal rows."""
+    for attempt in range(4):
+        r = await g["http"].request(method, url, headers=_h(), json=body)
+        if r.status_code == 429 and attempt < 3:
+            await asyncio.sleep(float(r.headers.get("Retry-After", 1)) + attempt)
+            continue
+        r.raise_for_status()
+        return r.json()
+
+
 async def n_create(g, db, props):
     if not (NOTION_TOKEN and db):
         return None
     try:
-        r = await g["http"].post("https://api.notion.com/v1/pages", headers=_h(),
-                                 json={"parent": {"database_id": db}, "properties": props})
-        r.raise_for_status()
-        return r.json()["id"]
+        js = await _notion(g, "POST", "https://api.notion.com/v1/pages",
+                           {"parent": {"database_id": db}, "properties": props})
+        return js["id"]
     except Exception as e:
         log.warning("notion create failed: %s", e)
         return None
@@ -108,8 +118,7 @@ async def n_patch(g, page_id, body):
     if not (NOTION_TOKEN and page_id):
         return
     try:
-        r = await g["http"].patch(f"https://api.notion.com/v1/pages/{page_id}", headers=_h(), json=body)
-        r.raise_for_status()
+        await _notion(g, "PATCH", f"https://api.notion.com/v1/pages/{page_id}", body)
     except Exception as e:
         log.warning("notion patch failed: %s", e)
 
