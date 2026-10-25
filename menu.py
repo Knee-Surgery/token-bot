@@ -113,7 +113,7 @@ async def screen(g, S, key, pc):
         live = [v for v in S["variants"].values() if v["status"] != "retired" and v["closed"]]
         live.sort(key=lambda v: -sum(t["pnl_usd"] for t in v["closed"]))
         rows = [f"{i}. {v['id']}  {usd(sum(t['pnl_usd'] for t in v['closed']))} · "
-                f"{sum(1 for t in evo.test_trades(v) if t['win'])} wins of {evo.WIN_MIN_PCT:g}%+"
+                f"{sum(1 for t in v['closed'] if t['win'])}/{len(v['closed'])} won"
                 for i, v in enumerate(live[:10], 1)]
         M = S.get("milestone") or {}
         return ("📊 TOP BOTS\n\n" + ("\n".join(rows) or "No trades yet.")

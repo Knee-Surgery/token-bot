@@ -1,5 +1,6 @@
 """Recorder (paths.py) and virtual replay (bench.py). Usage: python test_paths_bench.py <src> <run dir>"""
 import asyncio, os, sys, time, json, gzip, calendar
+from collections import Counter
 SRC, RUN = sys.argv[1], sys.argv[2]
 os.chdir(RUN); sys.path.insert(0, SRC)
 os.environ.update(TELEGRAM_BOT_TOKEN="1:x", EVO_POP="300"); os.environ.pop("NOTION_TOKEN", None)
@@ -63,15 +64,17 @@ P = bench.prepare({"W": coin(rows_of(up))})
 T = bench.replay(gn, P)
 check(len(T) >= 1 and T[0][1] == t0, f"enters at the first row that meets the v3.2 rule ({len(T)} trades)")
 # reproduce with evo's own functions
-ex = evo.m31_exits(gn); pos = {"entry_price": 1.0, "entry_liq": 80000, "ts": t0, "sl": ex["sl"], "hold": ex["hold"], "peak_price": 1.0, "last_price": 1.0, "lock": None, "ps_done": False}
-part, why, exp = 0.0, None, None
+ex = evo.m33_exits(gn)
+pos = {"entry_price": 1.0, "entry_liq": 80000, "ts": t0, "sl": ex["sl"], "hold": ex["hold"], "peak_price": 1.0, "last_price": 1.0,
+       "lock": None, "ps_frac": ex["ps_frac"], "ps_at": ex["ps_at"], "ps_step": ex["ps_step"], "ps_next": ex["ps_at"], "part": 0.0, "left": 1.0}
+why, exp = None, None
 for r in rows_of(up)[1:]:
     g_ = (r[1] - 1) * 100
-    if not pos["ps_done"] and g_ >= ex["ps_at"]:
-        part = 0.5 * (g_ - evo.COST_PCT); pos["ps_done"] = True
-    why = evo.m31_exit(pos, r[1], r[2], r[0])
-    if why:
-        exp = part + 0.5 * (g_ - evo.COST_PCT); break
+    act = evo.m33_step(pos, r[1], r[2], r[0])
+    if act and act[0] == "partial":
+        s_ = pos["left"] * act[1]; pos["part"] += s_ * (g_ - evo.COST_PCT); pos["left"] -= s_
+    elif act:
+        why, exp = act[1], pos["part"] + pos["left"] * (g_ - evo.COST_PCT); break
 check(T and abs(T[0][2] - exp) < 1e-9 and T[0][3] == why, f"same result as the live exit code: {T[0][2]:+.2f}% ({T[0][3]}) vs {exp:+.2f}% ({why})")
 # loser: straight down -> stop-loss
 P = bench.prepare({"L": coin(rows_of([1.0, 0.98, 0.96, 0.93, 0.90]))})
@@ -104,4 +107,42 @@ V = [v for v in evo.active(S) if v.get("virt")]
 check(len(V) == len(evo.active(S)) and info["coins"] >= 1, f"every active bot scored ({len(V)}, {info}, {dt:.2f}s)")
 lines = bench.digest_lines(S); print("   " + "\n   ".join(lines))
 check(lines and "Virtual replay" in lines[0], "hourly summary line")
+print("--- real recorded price paths (the bot's own paths/ folder)")
+from pathlib import Path  # noqa: E402
+real_dir = Path(SRC) / "paths"
+if not list(real_dir.glob("*.jsonl.gz")):
+    print("   no recorded paths in the repo yet: skipped")
+else:
+    paths.DIR = real_dir
+    R = paths.load(24 * 7)
+    P = bench.prepare(R)
+    rows_n = sum(len(c["rows"]) for c in P.values())
+    print(f"   {len(R)} real coins, {rows_n} rows, {sum(1 for c in P.values() if c['cand'])} with v3.2 entry signals")
+    check(len(R) > 0 and rows_n > 0, "real paths load")
+    S = evo.load()
+    designs = [evo.x1_genome(i) for i in range(len(evo.X1_DESIGN))]
+    bad = []
+    tot = {"v3.3": [], "v3.2": []}
+    for gn in designs:
+        for ver in ("v3.3", "v3.2"):
+            evo.M33 = ver == "v3.3"
+            for c in P.values():
+                c["memo"] = {}
+            T = bench.replay(gn, P)
+            tot[ver] += T
+            for m, ts, pct, why in T:
+                rows = P[m]["rows"]
+                i = next(k for k, r in enumerate(rows) if r[0] == ts)
+                if i not in P[m]["cand"] or pct < -100 or not (lo_hi := evo.m31_window(gn))[0] <= (rows[i][3] or 0) <= lo_hi[1]:
+                    bad.append((ver, m[:6], ts, pct, why))
+                if ver == "v3.3" and why == "rising profit lock" and pct < evo.MIN_TP_NET - 5:
+                    bad.append(("v3.3 take-profit under 25%", m[:6], pct))
+    evo.M33 = True
+    check(not bad, f"on real paths every replayed entry meets the rules, no loss past -100%, v3.3 profit-taking at ~25%+ ({bad[:3]})")
+    for ver, T in tot.items():
+        if T:
+            print(f"   {ver} on real paths, 10 founder designs: {len(T)} trades, {sum(t[2] for t in T) / len(T):+.2f}%/trade, "
+                  f"{sum(1 for t in T if t[2] > 0)} won, exits: {dict(Counter(t[3] for t in T).most_common(4))}")
+        else:
+            print(f"   {ver} on real paths: no entry signals for the founder designs yet")
 print("\nALL PASSED" if not fails else f"\n{len(fails)} FAILED"); sys.exit(bool(fails))

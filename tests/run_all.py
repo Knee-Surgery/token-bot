@@ -1,9 +1,12 @@
-"""Run every test in this folder: python tests/run_all.py [name ...]
+"""Run every test in this folder: python tests/run_all.py [--live] [name ...]
 
 Each test runs in its own temporary folder with a copy of the bot's state files (evo_state.json, auto_state.json),
 so nothing in the repo is changed. Tokens are removed from the environment: the tests use fakes only, paper only.
-No internet needed: tests that exercise real network code (harness2's search, analysis and 25 s trading loop,
-harness27) answer every request from fakenet.py's canned market, so results don't depend on API speed or limits.
+Market data: real. Tests that exercise network code (harness2's search, analysis and 25 s trading loop, harness27,
+test_v33) are answered from a recorded snapshot of the real market (tests/fixtures/market.json, refresh it with
+python tests/record_market.py), offline and the same every run; test_paths_bench also replays the bots' rules on
+the real price paths the bot records (paths/). --live sends the requests to the real APIs instead (needs internet;
+results then depend on the market and the APIs at that moment).
 
 Tests (arguments: repo folder, run folder):
   harness2       chat housekeeping (menu always last, cleanup) and family tree, fake Telegram + fake Notion
@@ -16,6 +19,7 @@ Tests (arguments: repo folder, run folder):
   test_menu6h    menu line: trades and P&L of the last 6 h, refreshed in place
   test_paths_bench   price-path recorder (paths.py) and virtual replay (bench.py)
   test_x1        line X1: 10 founders, population 50 + 10, breeding hold, founder priority and 15/30-trade report
+  test_v33       v3.3: 25% whole-trade take-profit, partial-sell ladder, protective floors, monitor = replay
 """
 import os, shutil, subprocess, sys, tempfile, time
 from pathlib import Path
@@ -23,12 +27,14 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SRC = HERE.parent
 TESTS = ["harness2", "harness3b", "harness4", "harness8b", "harness17", "harness27",
-         "test_review_fixes", "test_menu6h", "test_paths_bench", "test_x1"]
+         "test_review_fixes", "test_menu6h", "test_paths_bench", "test_x1", "test_v33"]
 
 
 def run(name: str) -> tuple[bool, str, float]:
     env = {k: v for k, v in os.environ.items() if k not in ("NOTION_TOKEN", "TELEGRAM_BOT_TOKEN")}
     env.update(PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+    if LIVE:
+        env["FAKENET_LIVE"] = "1"
     with tempfile.TemporaryDirectory(prefix=f"tb_{name}_") as d:
         for f in ("evo_state.json", "auto_state.json"):
             if (SRC / f).exists():
@@ -46,8 +52,17 @@ def run(name: str) -> tuple[bool, str, float]:
         return ok, "\n      ".join(fails) or last, time.time() - t
 
 
+LIVE = "--live" in sys.argv
+
 if __name__ == "__main__":
-    names = sys.argv[1:] or TESTS
+    names = [a for a in sys.argv[1:] if a != "--live"] or TESTS
+    sys.path.insert(0, str(HERE))
+    if LIVE:
+        print("market data: LIVE (real APIs, needs internet)\n")
+    else:
+        os.environ.pop("FAKENET_LIVE", None)
+        import fakenet
+        print(f"market data: {fakenet.SOURCE}, {len(fakenet.COINS)} coins (offline)\n")
     bad = 0
     for n in names:
         ok, info, dt = run(n)

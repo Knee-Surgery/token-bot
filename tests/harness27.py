@@ -65,15 +65,16 @@ async def main():
     await evo.scan({"http": None}, S, {M: (time.time(), p)}, ev)
     held = [v for v in act if M in v["positions"]]
     reps = [e for e in ev if e.startswith("🔎")]
-    check(len(held) == evo.MAX_PER_TOKEN and len(reps) == 1, f"{len(held)} bots entered, {len(reps)} report sent")
-    if reps: print("\n" + reps[0])
+    stored = (S.get("coin_reports") or {}).get(M) or {}
+    check(len(held) == evo.MAX_PER_TOKEN and not reps, f"{len(held)} bots entered, no report sent to Telegram ({len(reps)})")
+    check(stored.get("text", "").startswith("🔎") and stored.get("score") is not None, "the report is stored in the state instead")
+    if stored: print("\n" + stored["text"])
     check(all(v["positions"][M]["feat"].get("evidence") is not None for v in held), "every new trade carries the evidence score")
-    check(reps and reps[0].startswith(evo.ALERTS), "report goes to Telegram straight away")
     for v in held: del v["positions"][M]; v["cooldown"] = {}
     ev2 = []
     await evo.scan({"http": None}, S, {M: (time.time(), p)}, ev2)
-    check(not [e for e in ev2 if e.startswith("🔎")] and sum(1 for v in act if M in v["positions"]) == evo.MAX_PER_TOKEN,
-          "same coin again within 6 h: bots still enter, no second report")
+    check(not [e for e in ev2 if e.startswith("🔎")] and sum(1 for v in act if M in v["positions"]) == evo.MAX_PER_TOKEN
+          and S["coin_reports"][M]["ts"] >= stored["ts"], "same coin again: bots enter, nothing sent, stored report refreshed")
     print("\nALL PASSED" if not fails else f"\n{len(fails)} FAILED")
 
 asyncio.run(main())

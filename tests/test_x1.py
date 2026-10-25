@@ -15,10 +15,11 @@ evo.crossbreed(S, ev)
 X = evo.founders(S)
 check([v["id"] for v in X] == [f"X1-{i:02d}" for i in range(1, 11)], f"10 founders X1-01..X1-10: {[v['id'] for v in X]}")
 check(all(v["gen"] == 1 and v["parent"] is None and v["line"] == "X1" and "m5_arm" not in v for v in X), "generation 1, no parents, outside the A/B test")
-W = [evo.m31_window(v["genome"]) for v in X]; EX = [evo.m31_exits(v["genome"]) for v in X]
+W = [evo.m31_window(v["genome"]) for v in X]; EX = [evo.m33_exits(v["genome"]) for v in X]
 check(len({w[:2] for w in W}) == 10, f"every founder has its own 5 m window: {[w[:2] for w in W]}")
 check({w[2] for w in W} == {30000.0, 50000.0, 80000.0, 120000.0} and {e["sl"] for e in EX} == {6.0, 7.0, 8.0}
-      and {e["ps_at"] for e in EX} == {20.0, 22.5, 25.0}, "liquidity, stop-loss and partial-sell levels all used")
+      and {e["ps_at"] for e in EX} == {10.0, 20.0, 30.0} and {e["ps_step"] for e in EX} == {10.0, 20.0}
+      and {e["ps_frac"] for e in EX} == {0.25, 0.5}, "liquidity, stop-loss and partial-sell ladder levels all used")
 check(len({v["genome"]["size_frac"] for v in X}) == 1, "same stake for all (results compare directly)")
 check(len({json.dumps(v["genome"], sort_keys=True) for v in X}) == 10, "10 distinct genomes")
 check(S["breed_hold"] and ev and ev[0].startswith("🧬"), f"breeding on hold; alert: {ev[0][:80] if ev else None}")

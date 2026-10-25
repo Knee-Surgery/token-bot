@@ -73,9 +73,8 @@ MAX_HOLD_FLAT = float(os.getenv("EVO_MAX_HOLD_MIN", "15"))   # everything not in
 # 1 of 72 trades across 12 tokens (paper data to 2026-10-23); on 2026-10-24 they lost $18.54 of $45.27
 HARD_MIN_VOL_LIQ = float(os.getenv("EVO_MIN_VOL_LIQ", "0.5"))
 
-# testing only sees trades that netted at least this much, or lost money. Small profits (0 to 8%) are left out of
-# the checks, proven, validation and reliable-bot counts: they prove nothing. Their money still counts.
-WIN_MIN_PCT = float(os.getenv("EVO_WIN_MIN_PCT", "8"))
+# the 8% rule (small wins left out of testing) was dropped (owner, 2026-10-25): every closed trade counts. Under
+# v3.3 a trade only takes profit once the whole trade nets MIN_TP_NET%, so small wins come only from time exits
 
 # recovery trades: an idle bot takes a small quick trade to win back funds; never counted in testing (off at bf2874b)
 RECOVERY_ON = os.getenv("EVO_RECOVERY", "false").lower() == "true"
@@ -99,9 +98,8 @@ def proven_now(v) -> bool:
 
 
 def test_trades(v) -> list:
-    """The trades a bot is tested on: wins of WIN_MIN_PCT or more, and every loss (recovery trades are not in
-    v["closed"] at all)."""
-    return [t for t in v["closed"] if t["pnl_pct"] >= WIN_MIN_PCT or t["pnl_usd"] <= 0]
+    """The trades a bot is tested on: all of its closed trades (recovery trades are not in v["closed"] at all)."""
+    return list(v["closed"])
 
 # rug-risk reasoning (hard rules; evolution can only make them stricter)
 # pair must be at least this old (minutes). 4 h: across 61 tokens, entries into pairs under 4 h lost $237 of the
@@ -131,8 +129,9 @@ BOUNDS = {"tp": (45, 300), "sl": (1.5, 8), "hold": (1, 15), "trail": (3, 30), "s
           "min_score": (0, 90), "min_m5": (0, 15), "max_m5": (3, 1000), "min_txns": (0, 200),
           "min_vol_h1": (0, 500000),
           "lock_pull": (0.5, 15), "stall": (2, 30),  # discretionary exit genes (used once profit > DISCRETION_PCT)
-          "ps_frac": (0, 1), "ps_at": (5, 60)}  # partial sell: sell ps_frac of the position at +ps_at% gross
-GENE_DEFAULT = {"lock_pull": 4.0, "stall": 8, "ps_frac": 0, "ps_at": 20}
+          "ps_frac": (0, 1), "ps_at": (5, 80),  # partial sell: sell ps_frac of the position at +ps_at% gross
+          "ps_step": (5, 50)}  # v3.3: and again every ps_step% higher (as many partial sells as the price allows)
+GENE_DEFAULT = {"lock_pull": 4.0, "stall": 8, "ps_frac": 0, "ps_at": 20, "ps_step": 15}
 PS_CHOICES = (0, 0.10, 0.25, 0.50, 0.75, 1.0)  # partial-sell sizes a bot can use (0 = never sells part)
 INTS = {"stall", "hold", "min_score", "min_txns", "min_holders", "max_age_min"}
 LOG_KEYS = {"tp", "target_usd", "max_age_min", "min_holders", "min_liq"}
@@ -267,6 +266,28 @@ def introduce_v32(S, events):
                   f"liquidity or that keep losing. Entry test: half the bots +3-5%, half +8-15%.")
 
 
+def introduce_v33(S, events):
+    """One-off (owner, 2026-10-25): v3.3 for every active bot. Each gets a partial-sell ladder (first sale at its
+    ps_at, 10-30% gross, then every 10-30% higher, a quarter or half of what is left each time); the X1 founders get
+    the ladder from X1_DESIGN. Open trades finish under the rules they were opened with."""
+    if S.get("m33") or not (MOMENTUM and M33):
+        return
+    S["m33"] = time.time()
+    for v in active(S):
+        gn = v["genome"]
+        if v.get("founder") and v.get("line") == LINE:
+            _, _, _, ps, step, frac = X1_DESIGN[int(v["id"].split("-")[1]) - 1]
+            gn.update(ps_at=ps, ps_step=step, ps_frac=frac)
+        else:
+            gn.update(ps_at=round(random.uniform(10, 30), 1), ps_step=round(random.uniform(10, 30), 1),
+                      ps_frac=random.choice((0.25, 0.5)))
+        v["genome"] = clamp(gn)
+        v["notes"].append("v3.3: partial-sell ladder, take profit only at +25% whole trade, protective floors")
+    events.append(f"🆕 v3.3 live for {len(active(S))} bots: profit is only taken once the whole trade nets "
+                  f"+{MIN_TP_NET:g}% (partial sells allowed from any profit, as many as the price allows); protective "
+                  f"floors at +{FLOOR_HI:g}% and 0%; every trade now counts in testing (8% rule dropped).")
+
+
 def coin_losing(S, mint, now) -> str | None:
     """Why the bots should stay out of this coin: BAD_COIN_TRADES+ closed trades on it in the last BAD_COIN_H hours
     and net negative, or their last decision on it (within LAST_LOSS_H hours) lost money. None if neither."""
@@ -308,6 +329,68 @@ def m31_lock(peak_gain) -> float:
 def m31_exits(gn: dict) -> dict:
     return dict(gn, tp=1000, hold=30, sl=min(8.0, max(6.0, float(gn["sl"]))), ps_frac=0.5,
                 ps_at=min(25.0, max(20.0, float(gn["ps_at"]))), m31=True)
+
+
+# v3.3 (owner, 2026-10-25): minimum take-profit 25%. A bot may sell part of a trade at any level in profit, as many
+# times as it likes (ladder: ps_frac of what is left at +ps_at% gross, then every +ps_step% higher), but it only takes
+# its profit on the rest once the WHOLE trade (partial sells + the rest at the current price) nets MIN_TP_NET% after
+# costs. From then a lock on the whole trade ratchets up (never below MIN_TP_NET%) and closes it if it falls back.
+# Losses are cut at any level: protective floors (below), stop-loss, crash and liquidity exits, 30 min time limit.
+M33 = os.getenv("EVO_V33", "true").lower() == "true"
+MIN_TP_NET = float(os.getenv("EVO_MIN_TP_PCT", "25"))          # whole-trade net % before profit is taken
+M33_LOCK_START = float(os.getenv("EVO_M33_LOCK_START", "30"))  # whole-trade net % at which the lock switches on
+PS_MAX_FRAC = 0.5  # one partial sell never sells more than half of what is left, so there is a rest to take profit on
+# protective floors (owner, 2026-10-25: "almost no losses"): once the whole trade has netted FLOOR_HI%, it is sold if it
+# falls back to FLOOR_HI%; once it has netted FLOOR_ARM%, it is sold if it falls back to break-even (0% after costs).
+# They sell early, before a slide turns into a crash. A crash or rug that jumps past the floor between two checks
+# still sells at the real price (no paper fill better than the market), and trades never in profit keep the stop-loss.
+FLOOR_HI = float(os.getenv("EVO_FLOOR_HI_PCT", "5"))
+FLOOR_ARM = float(os.getenv("EVO_FLOOR_ARM_PCT", "0.5"))
+
+
+def m33_exits(gn: dict) -> dict:
+    fr = float(gn.get("ps_frac") or 0)
+    return dict(gn, tp=1000, hold=30, sl=min(8.0, max(6.0, float(gn["sl"]))), ps_frac=min(PS_MAX_FRAC, fr),
+                ps_at=min(80.0, max(COST_PCT + 2.5, float(gn["ps_at"]))),
+                ps_step=min(50.0, max(5.0, float(gn.get("ps_step") or GENE_DEFAULT["ps_step"]))), m31=True, m33=True)
+
+
+def m33_lock(peak_whole) -> float:
+    """Whole-trade net % the lock keeps: MIN_TP_NET at the least, a growing share of the best whole-trade result above
+    that (+30 -> +25, +50 -> +40, +100 -> +80)."""
+    return max(MIN_TP_NET, peak_whole * min(0.8, 0.4 + peak_whole / 100))
+
+
+def m33_step(pos: dict, price: float, liq: float, now: float):
+    """One price check of a v3.3 trade: ("partial", fraction of what is left), ("exit", reason) or None. The caller
+    books a partial sell and updates pos["part"] (net % of the original stake booked so far) and pos["left"] (share
+    of the stake still held). Used by the live monitor and by the replay (bench.py), so both behave the same."""
+    gross = (price / pos["entry_price"] - 1) * 100
+    prev, pos["last_price"] = pos.get("last_price", price), price
+    pos["peak_price"] = max(pos.get("peak_price", pos["entry_price"]), price)
+    part, left = pos.get("part", 0.0), pos.get("left", 1.0)
+    whole = part + left * (gross - COST_PCT)  # the whole trade's net % if the rest were sold now
+    pos["peak_whole"] = max(pos.get("peak_whole", -1e9), whole)
+    if pos["peak_whole"] >= M33_LOCK_START:
+        pos["lock"] = max(pos.get("lock") if pos.get("lock") is not None else -1e9, m33_lock(pos["peak_whole"]))
+    if liq < pos["entry_liq"] * (1 - RUG_LIQ_DROP):
+        return ("exit", "liquidity collapse")
+    if prev > 0 and price < prev * (1 - CRASH_TICK_PCT / 100):
+        return ("exit", "crash exit")
+    if pos.get("lock") is not None and whole <= pos["lock"]:
+        return ("exit", "rising profit lock")
+    if pos["peak_whole"] >= FLOOR_HI and whole <= FLOOR_HI:
+        return ("exit", f"protective floor +{FLOOR_HI:g}%")
+    if pos["peak_whole"] >= FLOOR_ARM and whole <= 0:
+        return ("exit", "protective floor 0%")
+    if gross <= -pos["sl"]:
+        return ("exit", "stop-loss")
+    if pos.get("ps_frac") and gross >= pos.get("ps_next", pos["ps_at"]) and gross > COST_PCT:
+        pos["ps_next"] = pos.get("ps_next", pos["ps_at"]) + pos["ps_step"]
+        return ("partial", pos["ps_frac"])
+    if (now - pos["ts"]) / 60 >= pos["hold"]:
+        return ("exit", "max hold time")
+    return None
 
 
 def m31_exit(pos: dict, price: float, liq: float, now: float) -> str | None:
@@ -762,17 +845,18 @@ def grow(S, events):
 CROSS_PARENTS = ("v2171", "v1844")  # the two kept through the population cut
 LINE = "X1"
 POP_CAP = int(os.getenv("EVO_POP_CAP", "60"))  # owner: 50 main bots + the 10 of the line
-#            5 m window   min liq  stop-loss  partial sell
-X1_DESIGN = [((3, 5), 30000, 6.0, 20.0),
-             ((3, 8), 80000, 7.0, 25.0),
-             ((4, 7), 50000, 8.0, 22.5),
-             ((5, 8), 120000, 6.0, 25.0),
-             ((6, 10), 30000, 8.0, 20.0),
-             ((8, 12), 80000, 6.0, 22.5),
-             ((8, 15), 50000, 7.0, 20.0),
-             ((10, 15), 120000, 8.0, 25.0),
-             ((3, 15), 50000, 7.0, 22.5),
-             ((12, 15), 80000, 7.0, 20.0)]
+# v3.3 partial-sell ladder per founder: first sale at +ps_at% gross, then every +step% higher, frac of what is left
+#            5 m window   min liq  stop-loss  ps_at  step  frac
+X1_DESIGN = [((3, 5), 30000, 6.0, 10.0, 10.0, 0.25),
+             ((3, 8), 80000, 7.0, 20.0, 20.0, 0.5),
+             ((4, 7), 50000, 8.0, 30.0, 10.0, 0.25),
+             ((5, 8), 120000, 6.0, 20.0, 10.0, 0.5),
+             ((6, 10), 30000, 8.0, 10.0, 20.0, 0.5),
+             ((8, 12), 80000, 6.0, 30.0, 20.0, 0.25),
+             ((8, 15), 50000, 7.0, 10.0, 10.0, 0.5),
+             ((10, 15), 120000, 8.0, 20.0, 20.0, 0.25),
+             ((3, 15), 50000, 7.0, 30.0, 10.0, 0.5),
+             ((12, 15), 80000, 7.0, 20.0, 20.0, 0.25)]
 X1_STAKE = 0.31
 X1_READY = (15, 30)  # trades each founder needs before the owner is told the ranking (15 first, again at 30)
 
@@ -794,10 +878,11 @@ def line_parent(S):
 
 
 def x1_genome(i: int) -> dict:
-    (lo, hi), liq, sl, ps = X1_DESIGN[i]
+    (lo, hi), liq, sl, ps, step, frac = X1_DESIGN[i]
     rnd = random.Random(f"X1-{i + 1}")  # the same founder every time this runs
     gn = {k: (rnd.uniform(*b) if k not in OPTIONAL or rnd.random() < 0.5 else 0) for k, b in BOUNDS.items()}
-    gn.update(min_m5=float(lo), max_m5=float(hi), min_liq=float(liq), sl=sl, ps_at=ps, ps_frac=0.5, size_frac=X1_STAKE)
+    gn.update(min_m5=float(lo), max_m5=float(hi), min_liq=float(liq), sl=sl, ps_at=ps, ps_step=step, ps_frac=frac,
+              size_frac=X1_STAKE)
     return clamp(gn)
 
 
@@ -811,8 +896,9 @@ def crossbreed(S, events):
     old = sorted((v for v in S["variants"].values() if v.get("line") == LINE), key=lambda v: v["id"])
     made = []
     for i in range(len(X1_DESIGN)):
-        (lo, hi), liq, sl, ps = X1_DESIGN[i]
-        note = f"X1 founder (gen 1): 5 m +{lo}-{hi}%, liquidity ${liq / 1000:.0f}k+, stop-loss {sl:g}%, half sold at +{ps:g}%"
+        (lo, hi), liq, sl, ps, step, frac = X1_DESIGN[i]
+        note = (f"X1 founder (gen 1): 5 m +{lo}-{hi}%, liquidity ${liq / 1000:.0f}k+, stop-loss {sl:g}%, sells "
+                f"{frac:.0%} of the rest at +{ps:g}% and every +{step:g}% higher")
         if i < len(old):
             v = old[i]
             v.update(genome=x1_genome(i), gen=1, parent=None, notes=[note], status="testing", reason="")
@@ -827,7 +913,7 @@ def crossbreed(S, events):
         v["status"], v["reason"] = "retired", "made before the X1 founders were redesigned"
     events.append(f"🧬 Line {LINE}: {len(made)} founder bots ({made[0]} to {made[-1]}), generation 1, each with "
                   f"different genes (5 m windows from +3-5% to +12-15%, liquidity $30k-120k, stop-loss 6-8%, partial "
-                  f"sell +20-25%). They get first pick of trades and are not retired; no new bots are bred until you "
+                  f"sells from +10/20/30%). They get first pick of trades and are not retired; no new bots are bred until you "
                   f"pick the next 2 parents (after {X1_READY[0]}-{X1_READY[1]} trades each).")
 
 
@@ -846,10 +932,10 @@ def founder_report(S, events):
         for v in sorted(F, key=lambda v: -sum(t["pnl_usd"] for t in v["closed"])):
             c = v["closed"]
             w = sum(1 for t in c if t["pnl_usd"] > 0)
-            (lo, hi), liq, sl, ps = X1_DESIGN[int(v["id"].split("-")[1]) - 1]
+            (lo, hi), liq, sl, ps, step, frac = X1_DESIGN[int(v["id"].split("-")[1]) - 1]
             rows.append(f"{v['id']}: {len(c)} trades, {w} won, {sum(t['pnl_usd'] for t in c):+.2f} USD, "
                         f"{sum(t['pnl_pct'] for t in c) / len(c):+.1f}%/trade, {len({t['mint'] for t in c})} coins"
-                        f"  (+{lo}-{hi}%, ${liq / 1000:.0f}k, SL {sl:g}%, PS {ps:g}%)")
+                        f"  (+{lo}-{hi}%, ${liq / 1000:.0f}k, SL {sl:g}%, sells {frac:.0%} from +{ps:g}% every +{step:g}%)")
         events.append(f"🧬 Line {LINE}: every founder has {level}+ trades. Ranking by profit:\n" + "\n".join(rows)
                       + "\nTell me which 2 to breed the next generation from.")
 
@@ -1263,16 +1349,21 @@ async def prefetch(g, pc, mints, ttl):
             pc[m] = (now, p)
 
 
-async def partial_sell(g, S, v, mint, pos, price, now):
-    """Sell ps_frac of an open position at the current price (once). The profit on that part is booked at once (bot
-    funds, overall total, Notion rows labelled 'Partial sell N%'); the rest stays open with the bot's normal exits."""
-    f = pos["ps_frac"]
+async def partial_sell(g, S, v, mint, pos, price, now, frac=None):
+    """Sell a fraction of what is left of an open position at the current price (ps_frac, once, before v3.3; under
+    v3.3 `frac` each time the ladder says so). The profit on that part is booked at once (bot funds, overall total,
+    Notion rows labelled 'Partial sell N%'); the rest stays open with the bot's normal exits."""
+    f = pos["ps_frac"] if frac is None else frac
     label = f"Partial sell {f:.0%}"
     net = (price / pos["entry_price"] - 1) * 100 - COST_PCT
     part_cost, part_tokens = pos["cost_usd"] * f, pos["size_tokens"] * f
     pnl = part_cost * net / 100
     pos["ps_done"] = True
+    pos["ps_n"] = pos.get("ps_n", 0) + 1
     pos["realized_usd"] = pos.get("realized_usd", 0.0) + pnl
+    orig = pos.get("orig_cost") or pos["cost_usd"]
+    pos["part"] = pos["realized_usd"] / orig * 100  # v3.3: whole-trade bookkeeping for m33_step
+    pos["left"] = (pos["cost_usd"] - part_cost) / orig
     pos["cost_usd"] -= part_cost
     pos["size_tokens"] -= part_tokens
     v["paper_usd"] += pnl
@@ -1445,12 +1536,19 @@ async def monitor(g, S, pc, events, notes_out):
                 now = time.time()
                 gross = (price / pos["entry_price"] - 1) * 100
                 why = None
-                if pos.get("ps_frac") and not pos.get("ps_done") and gross >= pos["ps_at"]:
+                if pos.get("m33"):
+                    act = m33_step(pos, price, liq, now)
+                    if act and act[0] == "partial":
+                        await partial_sell(g, S, v, mint, pos, price, now, frac=act[1])
+                        act = None
+                    why = act[1] if act else None
+                elif pos.get("ps_frac") and not pos.get("ps_done") and gross >= pos["ps_at"]:
                     if pos["ps_frac"] >= 1:
                         why = "Partial sell 100%"  # the whole position goes at the partial-sell level
                     else:
                         await partial_sell(g, S, v, mint, pos, price, now)
-                why = why or (m31_exit(pos, price, liq, now) if pos.get("m31") else decide_exit(pos, price, liq, now))
+                if not pos.get("m33"):
+                    why = why or (m31_exit(pos, price, liq, now) if pos.get("m31") else decide_exit(pos, price, liq, now))
 
                 if not why:
                     if now - pos.get("last_patch", 0) >= patch_every:  # keep Notion calls light
@@ -1471,7 +1569,7 @@ async def monitor(g, S, pc, events, notes_out):
                 whole_pct = whole_usd / (pos.get("orig_cost") or pos["cost_usd"]) * 100
                 rec = {"mint": mint, "pnl_pct": whole_pct, "pnl_usd": whole_usd, "win": whole_usd > 0,
                        "why": why, "ts": now, "entry_ts": pos.get("ts"), "feat": pos.get("feat"), "name": pos["name"],
-                       "partial": pos["ps_frac"] if pos.get("ps_done") else None}
+                       "partial": pos["ps_frac"] if pos.get("ps_done") else None, "partials": pos.get("ps_n", 0)}
                 # append-only ledger of every closed trade (never pruned, unlike the per-bot lists), so the totals
                 # can be reconciled; pnl_usd is the whole trade (partial sell included), as in the bot's record
                 S.setdefault("ledger", []).append(
@@ -1627,7 +1725,7 @@ async def scan(g, S, pc, events):
             gn = v["genome"]
             size_usd = v["paper_usd"] * gn["size_frac"]
             if MOMENTUM:
-                ex = m31_exits(gn)
+                ex = m33_exits(gn) if M33 else m31_exits(gn)
             elif sprint:
                 ex = sprint_exits(gn)
             else:
@@ -1650,11 +1748,11 @@ async def scan(g, S, pc, events):
     await recovery_trades(g, S, pc, free, ok_tokens)
 
 
-COIN_REPORT_H = float(os.getenv("EVO_COIN_REPORT_H", "6"))  # one report per coin per this many hours
+COIN_REPORT_KEEP = int(os.getenv("EVO_COIN_REPORT_KEEP", "150"))  # coins whose latest report is kept in the state
 
 
 def coin_alert(S, events, mint, p, a, entered):
-    """Fact-based report on a coin the bots just entered (coin_report.py), at most once per coin per COIN_REPORT_H.
+    """Fact-based report on a coin the bots just entered (coin_report.py), stored in S["coin_reports"] (not sent to Telegram).
     Its evidence score is saved on every new trade, so reviews can check whether higher scores actually win."""
     import coin_report
     now = time.time()
@@ -1666,12 +1764,11 @@ def coin_alert(S, events, mint, p, a, entered):
         return
     for v in entered:
         v["positions"][mint]["feat"]["evidence"] = sc
+    # stored only, not sent to Telegram (owner, 2026-10-25): the latest report per coin, the newest COIN_REPORT_KEEP
     R = S.setdefault("coin_reports", {})
-    if now - (R.get(mint) or {}).get("ts", 0) >= COIN_REPORT_H * 3600:
-        events.append(text)
-        R[mint] = {"ts": now, "score": sc, "name": name}
-        for k in sorted(R, key=lambda m: R[m]["ts"])[:max(0, len(R) - 300)]:
-            del R[k]
+    R[mint] = {"ts": now, "score": sc, "name": name, "text": text}
+    for k in sorted(R, key=lambda m: R[m]["ts"])[:max(0, len(R) - COIN_REPORT_KEEP)]:
+        del R[k]
 
 
 async def open_position(g, v, mint, p, a, age, size_usd, ex, recovery=False):
@@ -1706,7 +1803,9 @@ async def open_position(g, v, mint, p, a, age, size_usd, ex, recovery=False):
                             "feat": features(p, a, age), "peak_price": fill, "last_price": price,
                             "recovery": recovery, "ps_frac": ex.get("ps_frac", 0), "ps_at": ex.get("ps_at", 0),
                             "orig_cost": size_usd, "realized_usd": 0.0, "max_hold": ex.get("max_hold"),
-                            "m31": bool(ex.get("m31")), "lock": None}
+                            "m31": bool(ex.get("m31")), "lock": None,
+                            "m33": bool(ex.get("m33")), "ps_step": ex.get("ps_step"), "ps_next": ex.get("ps_at", 0),
+                            "part": 0.0, "left": 1.0}
     v["cooldown"][mint] = ts
     v["last_entry"] = ts
     pos = v["positions"][mint]
@@ -2006,6 +2105,7 @@ async def run(tb, g, loop_seconds: int):
             inherit_arm(S, v)
     crossbreed(S, events)              # one-off: line X1, 10 founders with different genes
     cut_population(S, events)          # one-off: 50 main bots + the line
+    introduce_v33(S, events)           # one-off: 25% minimum take-profit, partial-sell ladder, protective floors
     grow(S, events)  # 20 children of the strongest bots, once an hour (off once the population is capped)
     ensure_population(S, events)
     pc: dict = {}

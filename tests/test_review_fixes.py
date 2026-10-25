@@ -100,6 +100,7 @@ def t2():
     check("m5_arm" not in orphan, "bot without a labelled parent gets no label")
     # grow() children
     S["last_grow"] = 0
+    S.pop("pop_cap", None); S.pop("breed_hold", None)  # grow() is off once the population is capped (line X1)
     evo.GROW_MAX, evo.GROW_PER_HOUR = 10 ** 6, 20  # past the live population ceiling, for the test only
     n0 = S["next_id"]
     evo.grow(S, [])

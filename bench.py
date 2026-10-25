@@ -57,8 +57,36 @@ def prepare(coins: dict) -> dict:
     return out
 
 
+def exit_from33(rows, i, ex) -> tuple[float, str, int]:
+    """v3.3: the same evo.m33_step the live monitor uses, partial sells booked the same way."""
+    r0 = rows[i]
+    pos = {"entry_price": r0[1], "entry_liq": r0[2], "ts": r0[0], "sl": ex["sl"], "hold": ex["hold"],
+           "peak_price": r0[1], "last_price": r0[1], "lock": None, "ps_frac": ex["ps_frac"], "ps_at": ex["ps_at"],
+           "ps_step": ex["ps_step"], "ps_next": ex["ps_at"], "part": 0.0, "left": 1.0}
+    last = i
+    for j in range(i + 1, len(rows)):
+        r = rows[j]
+        if r[0] - rows[last][0] > 600:  # a gap of 10+ min in the recording (between runs): sell at the last row
+            break
+        last = j
+        act = evo.m33_step(pos, r[1], r[2], r[0])
+        if act and act[0] == "partial":
+            gross = (r[1] / pos["entry_price"] - 1) * 100
+            sold = pos["left"] * act[1]
+            pos["part"] += sold * (gross - evo.COST_PCT)
+            pos["left"] -= sold
+        elif act:
+            gross = (r[1] / pos["entry_price"] - 1) * 100
+            slip = evo.RUG_EXIT_SLIP if act[1] in ("liquidity collapse", "crash exit") else 0.0
+            return pos["part"] + pos["left"] * max(-100.0, gross - evo.COST_PCT - slip), act[1], j
+    gross = (rows[last][1] / pos["entry_price"] - 1) * 100
+    return pos["part"] + pos["left"] * max(-100.0, gross - evo.COST_PCT), "end of recording", last
+
+
 def exit_from(rows, i, ex) -> tuple[float, str, int]:
     """Enter at row i with exit settings ex; returns (whole-trade net %, exit reason, exit row index)."""
+    if ex.get("m33"):
+        return exit_from33(rows, i, ex)
     r0 = rows[i]
     pos = {"entry_price": r0[1], "entry_liq": r0[2], "ts": r0[0], "sl": ex["sl"], "hold": ex["hold"],
            "peak_price": r0[1], "last_price": r0[1], "lock": None, "ps_done": False}
@@ -87,12 +115,13 @@ def exit_from(rows, i, ex) -> tuple[float, str, int]:
 
 def replay(gn: dict, P: dict) -> list:
     """Every virtual trade one genome makes on the prepared coins: [(mint, entry ts, net %, why)].
-    The stop-loss is replayed to the nearest 0.25% and the partial-sell level to the nearest 1%, so bots with nearly
+    The stop-loss is replayed to the nearest 0.25% and the partial-sell levels to the nearest 1%, so bots with nearly
     the same exits share one simulation (P[mint]["memo"]); 600 bots stay a few seconds instead of minutes."""
     lo, hi, min_liq = evo.m31_window(gn)
-    ex = evo.m31_exits(gn)
-    ex = dict(ex, sl=round(ex["sl"] * 4) / 4, ps_at=float(round(ex["ps_at"])))
-    key = (ex["sl"], ex["ps_at"])
+    ex = evo.m33_exits(gn) if evo.M33 else evo.m31_exits(gn)
+    ex = dict(ex, sl=round(ex["sl"] * 4) / 4, ps_at=float(round(ex["ps_at"])),
+              ps_step=float(round(ex.get("ps_step") or 0) or 15), ps_frac=float(ex.get("ps_frac") or 0))
+    key = (ex["sl"], ex["ps_at"], ex["ps_step"], ex["ps_frac"])
     out = []
     for m, c in P.items():
         rows, cand, ts, memo = c["rows"], c["cand"], c["cand_ts"], c["memo"]
