@@ -673,6 +673,28 @@ def clone_best(S, events):
                   f"No limit on bots per coin. Still Momentum v3.1.")
 
 
+def fix_overloss(S, events):
+    """One-off (2026-10-25): a rug exit (price near 0, minus costs and the 10% rug-exit penalty) booked 10 CHUNKEE
+    trades at -112%, more than the stake. Losses are now capped at -100%; this corrects those records, the bots'
+    funds and the overall total to -100%."""
+    if S.get("overloss_fixed"):
+        return
+    S["overloss_fixed"] = time.time()
+    n, back = 0, 0.0
+    for v in S["variants"].values():
+        for t in v["closed"]:
+            if t["pnl_pct"] < -100:
+                diff = t["pnl_usd"] * (100 / -t["pnl_pct"] - 1)  # > 0: the part of the loss beyond the stake
+                t["pnl_usd"] += diff
+                t["pnl_pct"] = -100.0
+                v["paper_usd"] += diff
+                n, back = n + 1, back + diff
+    if n:
+        S["total_pnl"] = (S.get("total_pnl") or 0.0) + back
+        events.append(f"⚠️ Correction: {n} trades were booked at a loss bigger than their stake. Losses are now "
+                      f"capped at -100%; the records and the total were corrected (+${back:.2f}).")
+
+
 def spread_entry_genes(S, events):
     """One-off (2026-10-24): give every active bot except CLONE_ID its own v3.1 entry window (see m31_window), so
     bots differ in which coins they buy and the 10 slots per coin go to bots that want it. CLONE_ID keeps v3.1's."""
@@ -1208,7 +1230,7 @@ async def monitor(g, S, pc, events, notes_out):
                     continue
 
                 slip = RUG_EXIT_SLIP if why in ("liquidity collapse", "crash exit") else 0.0
-                net = gross - COST_PCT - slip
+                net = max(-100.0, gross - COST_PCT - slip)  # a position can't lose more than it cost
                 pnl_usd = pos["cost_usd"] * net / 100  # what is left of the position (all of it without a partial)
                 v["paper_usd"] += pnl_usd
                 # the trade as a whole (partial sell + the rest) is what the bot is tested on
@@ -1669,6 +1691,7 @@ async def run(tb, g, loop_seconds: int):
     clone_best(S, events)              # one-off: every bot a slightly different copy of v1092
     replace_with_strongest(S, events)  # one-off: every bot from the strongest genes (skipped once cloned)
     spread_entry_genes(S, events)      # one-off: each bot its own entry window inside v3.1
+    fix_overloss(S, events)            # one-off: trades booked below -100% back to -100%
     grow(S, events)  # 20 children of the strongest bots, once an hour
     ensure_population(S, events)
     pc: dict = {}
