@@ -2,8 +2,8 @@
 
 Each test runs in its own temporary folder with a copy of the bot's state files (evo_state.json, auto_state.json),
 so nothing in the repo is changed. Tokens are removed from the environment: the tests use fakes only, paper only.
-harness2, harness17 and harness27 also read live public data (DexScreener, GitHub raw state), so they need internet
-and can fail now and then when an API is slow or rate-limits; re-run those before treating a failure as real.
+No internet needed: tests that exercise real network code (harness2's search, analysis and 25 s trading loop,
+harness27) answer every request from fakenet.py's canned market, so results don't depend on API speed or limits.
 
 Tests (arguments: repo folder, run folder):
   harness2       chat housekeeping (menu always last, cleanup) and family tree, fake Telegram + fake Notion

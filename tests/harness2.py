@@ -11,6 +11,8 @@ if os.path.exists("evo_state.json"):
     os.remove("evo_state.json")
 
 import bot, auto, evo, menu, tree  # noqa: E402
+import fakenet  # noqa: E402
+fakenet.install(bot)  # offline: canned market, no internet
 
 OWNER = bot.OWNER_ID
 fails = []
@@ -190,6 +192,7 @@ async def main():
     await chat_test()
     await tree_test()
     await run_test()
+    print(f"offline requests: {dict(fakenet.calls)}" + (f"; unknown (404): {fakenet.unknown[:5]}" if fakenet.unknown else ""))
     print("\nALL PASSED" if not fails else f"\n{len(fails)} FAILED")
 
 asyncio.run(main())

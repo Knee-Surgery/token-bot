@@ -4,8 +4,11 @@ import asyncio, os, sys, time, random, urllib.request, json
 SRC, RUN = sys.argv[1], sys.argv[2]
 os.chdir(RUN); sys.path.insert(0, SRC)
 os.environ.update(TELEGRAM_BOT_TOKEN="1:x", EVO_POP="300"); os.environ.pop("NOTION_TOKEN", None)
-open("evo_state.json", "wb").write(urllib.request.urlopen("https://raw.githubusercontent.com/Knee-Surgery/token-bot/main/evo_state.json").read())
+if not os.path.exists("evo_state.json"):  # offline: the bot's own state from the repo (run_all.py copies it here)
+    open("evo_state.json", "wb").write(open(os.path.join(SRC, "evo_state.json"), "rb").read())
 import evo, auto, bot, coin_report  # noqa: E402
+import fakenet  # noqa: E402
+fakenet.install(bot)
 
 fails = []
 def check(c, m):
