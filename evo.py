@@ -1893,6 +1893,7 @@ async def run(tb, g, loop_seconds: int):
                     last_clean = now
                     await menu.cleanup(tb, g, S)
                     await menu.keep_menu_last(tb, g, S)
+                    await menu.refresh_menu(tb, g, S)  # P&L and last-6-h figures stay current
             except Exception as e:
                 log.exception("cycle error: %s", e)
             if time.time() - start + 10 >= loop_seconds:

@@ -38,8 +38,24 @@ def _big(x) -> str:
     return f"${x / 1e6:,.1f}M" if x >= 1e6 else f"${x / 1e3:,.0f}k" if x >= 1e3 else f"${x:,.0f}"
 
 
+RECENT_H = float(os.getenv("TG_RECENT_H", "6"))
+
+
+def recent_trades(S, hours=RECENT_H) -> tuple[int, float]:
+    """Trades closed in the last `hours` (recovery trades included, as in the P&L) and their net P&L. From the
+    append-only ledger; for the time before the ledger existed, from the bots' own trade lists."""
+    cut = time.time() - hours * 3600
+    L = S.get("ledger") or []
+    start = L[0]["ts"] if L else float("inf")
+    T = [t for t in L if t["ts"] >= cut]
+    if cut < start:
+        T += [t for v in S["variants"].values() for t in v["closed"] + (v.get("recovery") or []) if cut <= t["ts"] < start]
+    return len(T), sum(t["pnl_usd"] for t in T)
+
+
 def menu_text(S) -> str:
     pnl = S.get("total_pnl")
+    n6, pnl6 = recent_trades(S)
     M = S.get("milestone") or {}
     goal = {"proving": f"🎯 Proof test running (ends "
                        f"{time.strftime('%d %b %H:%M', time.gmtime(M.get('since', 0) + evo.PROOF_HOURS * 3600))} UTC)",
@@ -47,6 +63,7 @@ def menu_text(S) -> str:
     open_n = sum(len(v["positions"]) for v in S["variants"].values())
     return (f"🤖 Token Bot · Paper · {'⏸ Paused' if S['halted'] else '▶️ Running'}\n\n"
             + (f"💰 P&L: {usd(pnl)}\n" if pnl is not None else "")
+            + f"🕕 Last {RECENT_H:g} h: {n6} trades, {usd(pnl6)}\n"
             + f"💼 Open trades: {open_n}\n{goal}")
 
 
@@ -149,9 +166,11 @@ async def show_menu(tb, g, S, text=None, markup=None):
     """Delete the old menu and post a fresh one at the bottom (silently: no notification for a menu move)."""
     async with _lock:
         old = S.get("menu_id")
-        m = await tb.send_message(g["OWNER_ID"], (text or menu_text(S))[:3900],
+        S["menu_shown"] = shown = text or menu_text(S)
+        m = await tb.send_message(g["OWNER_ID"], shown[:3900],
                                   reply_markup=markup or menu_markup(S), disable_notification=True)
         S["menu_id"] = m.message_id
+        S["menu_main"] = text is None  # the main menu (not a screen like Top bots): refresh_menu() keeps it current
         _track(S, m.message_id)
         if old:
             S["tg_msgs"] = [x for x in S["tg_msgs"] if x[0] != old]
@@ -159,6 +178,25 @@ async def show_menu(tb, g, S, text=None, markup=None):
                 await tb.delete_message(g["OWNER_ID"], old)
             except Exception:
                 pass  # already gone or too old for Telegram to delete
+
+
+async def refresh_menu(tb, g, S):
+    """Keep the main menu's figures (P&L, last 6 h) current by editing it in place; never while it shows a screen."""
+    if not S.get("menu_id") or not S.get("menu_main"):
+        return
+    text = menu_text(S)
+    if text == S.get("menu_shown"):
+        return
+    async with _lock:
+        try:
+            await tb.edit_message_text(text[:3900], chat_id=g["OWNER_ID"], message_id=S["menu_id"],
+                                       reply_markup=menu_markup(S))
+            S["menu_shown"] = text
+        except Exception as e:
+            if "not modified" in str(e).lower():
+                S["menu_shown"] = text
+            else:
+                log.warning("menu refresh failed: %s", e)
 
 
 async def keep_menu_last(tb, g, S):
@@ -189,6 +227,7 @@ async def _menu_screen(tb, g, S, q, text, markup):
     if q.message and q.message.message_id == S.get("menu_id"):
         try:
             await q.edit_message_text(text[:3900], reply_markup=markup)
+            S["menu_main"], S["menu_shown"] = text == menu_text(S), text
             return
         except Exception as e:
             if "not modified" in str(e).lower():
