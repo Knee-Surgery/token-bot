@@ -208,6 +208,12 @@ M31_MAX_LIQ = float(os.getenv("EVO_M31_MAX_LIQ", "250000"))
 # coins the bots keep losing on are skipped: 10+ trades in the last 24 h and net negative (TRUMP and DOPE: 324
 # trades, 0 wins, -$55.55 under v3.1)
 BAD_COIN_TRADES, BAD_COIN_H = 10, 24
+# and for LAST_LOSS_H hours after the bots' last decision on a coin lost (2026-10-25): with max 3 bots per coin the
+# 10-trade rule needs 4+ losing decisions to fire (BTC: 5 losing decisions in a row, -$1.29 of v3.2's first -$1.98).
+# Replayed on 213 decisions: the ones right after a losing decision on the same coin made -6.1% each (25 of 108 won),
+# the rest -5.2%; skipping them would have saved $96.86 of $135.51
+LAST_LOSS_H = float(os.getenv("EVO_LAST_LOSS_H", "6"))
+DECISION_S = 180  # exits on one coin within this many seconds are one decision (the bots that went in together)
 
 
 def m31_pair_ok(p: dict, age) -> bool:
@@ -241,11 +247,18 @@ def introduce_v32(S, events):
                   f"liquidity or that keep losing. Entry test: half the bots +3-5%, half +8-15%.")
 
 
-def coin_losing(S, mint, now) -> bool:
-    """BAD_COIN_TRADES+ closed trades on this coin in the last BAD_COIN_H hours, and net negative."""
-    T = [t for v in S["variants"].values() for t in v["closed"]
-         if t["mint"] == mint and now - t["ts"] <= BAD_COIN_H * 3600]
-    return len(T) >= BAD_COIN_TRADES and sum(t["pnl_usd"] for t in T) < 0
+def coin_losing(S, mint, now) -> str | None:
+    """Why the bots should stay out of this coin: BAD_COIN_TRADES+ closed trades on it in the last BAD_COIN_H hours
+    and net negative, or their last decision on it (within LAST_LOSS_H hours) lost money. None if neither."""
+    T = sorted((t for v in S["variants"].values() for t in v["closed"]
+                if t["mint"] == mint and now - t["ts"] <= BAD_COIN_H * 3600), key=lambda t: t["ts"])
+    if len(T) >= BAD_COIN_TRADES and sum(t["pnl_usd"] for t in T) < 0:
+        return "bots keep losing on it (24h)"
+    if T and now - T[-1]["ts"] <= LAST_LOSS_H * 3600:
+        last = [t for t in T if T[-1]["ts"] - t["ts"] <= DECISION_S]
+        if sum(t["pnl_usd"] for t in last) < 0:
+            return f"last decision on it lost ({LAST_LOSS_H:g}h)"
+    return None
 
 
 def m31_window(gn: dict) -> tuple:
@@ -1382,9 +1395,10 @@ async def scan(g, S, pc, events):
                            and entry_ok(p, v["genome"], age))]
         if not wanting:
             continue
-        if MOMENTUM and coin_losing(S, mint, now):
+        bad = coin_losing(S, mint, now) if MOMENTUM else None
+        if bad:
             rs = S.setdefault("rejects", {})
-            rs["bots keep losing on it (24h)"] = rs.get("bots keep losing on it (24h)", 0) + 1
+            rs[bad] = rs.get(bad, 0) + 1
             continue
         ac = S["acache"].get(mint)
         if ac and now - ac["ts"] < ACACHE_TTL_MIN * 60:
