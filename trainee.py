@@ -66,6 +66,10 @@ OLD_ARMS = [dict(tp=tp, sl=sl, at_tp="half" if ps[0] else "all", add=add)  # ver
             for hold in (15, 30)]
 LOCK_START = 5                 # profit-lock stop switches on once the trade has been up this much (gross %)
 LOCK_MIN = evo.COST_PCT + 0.5  # it never locks less than this: the costs plus a little profit
+# hard stop-loss for every trainee trade (owner, 2026-10-25: 25%, then 5%): tighter than each plan's own 6/10% stop,
+# so it is the stop that fires, also for the half left after a take-profit. It runs in step(), so the shadow trades
+# (and the brain's plan choice) see the same stop. Sells at the real price, like every exit
+HARD_STOP = float(os.getenv("TRAINEE_HARD_STOP_PCT", "5"))
 SHADOW_MAX_H = 6     # a shadow trade still open after this long is scored at the market price (so learning goes on)
 HIGH_SCORE = 0.65
 MIN_PICKED = 12
@@ -325,6 +329,8 @@ def step(L, arm, price, liq, now, buyers_lead, high_score) -> list:
     peak_gain = (L["peak"] / avg - 1) * 100
     if peak_gain >= LOCK_START:  # ratchet: up with the best gain, never down
         L["lock"] = max(L.get("lock") if L.get("lock") is not None else -1e9, lock_level(peak_gain))
+    if gross <= -HARD_STOP:  # owner: whatever the plan, no trade is held past -HARD_STOP%
+        return [("exit", f"hard stop -{HARD_STOP:g}%")]
     if liq < L["liq"] * (1 - evo.RUG_LIQ_DROP):
         return [("exit", "liquidity collapse")]
     if price < prev * (1 - evo.CRASH_TICK_PCT / 100):
