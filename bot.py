@@ -140,18 +140,22 @@ async def analyze(mint: str) -> dict:
                 lp = m.get("lp") or {}
                 if lp.get("lpLockedPct") is not None:
                     lp_locked.append(float(lp["lpLockedPct"]))
+            # no holder list or no authority fields = unknown (None), never "safe" (0 / False): the gates fail closed
+            have_holders = bool(rep.get("topHolders"))
             tops = [h for h in (rep.get("topHolders") or [])
                     if h.get("address") not in skip and h.get("owner") not in skip]
-            out["top10"] = round(sum(float(h.get("pct", 0)) for h in tops[:10]), 2)
+            out["top10"] = round(sum(float(h.get("pct", 0)) for h in tops[:10]), 2) if have_holders else None
             creator = rep.get("creator")
             rc = {
-                "mint_auth": bool(rep.get("mintAuthority")),
-                "freeze_auth": bool(rep.get("freezeAuthority")),
+                "mint_auth": bool(rep["mintAuthority"]) if "mintAuthority" in rep else None,
+                "freeze_auth": bool(rep["freezeAuthority"]) if "freezeAuthority" in rep else None,
                 "rugged": bool(rep.get("rugged")),
-                "top1": round(float(tops[0].get("pct", 0)), 2) if tops else None,
-                "insider_pct": round(sum(float(h.get("pct", 0)) for h in tops if h.get("insider")), 2),
+                "top1": round(float(tops[0].get("pct", 0)), 2) if have_holders and tops else None,
+                "insider_pct": round(sum(float(h.get("pct", 0)) for h in tops if h.get("insider")), 2)
+                if have_holders else None,
                 "creator_pct": round(sum(float(h.get("pct", 0)) for h in tops
-                                         if creator and creator in (h.get("address"), h.get("owner"))), 2),
+                                         if creator and creator in (h.get("address"), h.get("owner"))), 2)
+                if have_holders else None,
                 "lp_locked": max(lp_locked) if lp_locked else None,
                 "fee_pct": float((rep.get("transferFee") or {}).get("pct") or 0),
                 "risks": [str(r.get("name", "")).lower() for r in (rep.get("risks") or [])
@@ -164,11 +168,13 @@ async def analyze(mint: str) -> dict:
     except Exception as e:
         log.warning("holder data failed: %s", e)
     if out["holders"] is not None:
-        out["lines"].append(f"Holders: {out['holders']:,}   Top 10 (excl. pools): {out['top10']}%")
+        out["lines"].append(f"Holders: {out['holders']:,}   Top 10 (excl. pools): "
+                            f"{'?' if out['top10'] is None else out['top10']}%")
     rc = out.get("rc") or {}
     if rc:
         out["lines"].append(
-            f"Mint authority: {'ON' if rc['mint_auth'] else 'off'}  Freeze: {'ON' if rc['freeze_auth'] else 'off'}  "
+            f"Mint authority: {'?' if rc['mint_auth'] is None else 'ON' if rc['mint_auth'] else 'off'}  "
+            f"Freeze: {'?' if rc['freeze_auth'] is None else 'ON' if rc['freeze_auth'] else 'off'}  "
             f"LP locked: {rc['lp_locked'] if rc['lp_locked'] is not None else '?'}%  Top holder: {rc['top1']}%  "
             f"Insiders: {rc['insider_pct']}%  Creator: {rc['creator_pct']}%")
     ok, why = holder_gate(out)

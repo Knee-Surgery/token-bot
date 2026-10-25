@@ -334,6 +334,12 @@ def step(L, arm, price, liq, now, buyers_lead, high_score) -> list:
         return []
     if gross <= -arm["sl"]:
         return [("exit", "stop-loss")]
+    # take-profit first: never buy more on the tick that takes the profit
+    if gross >= arm["tp"]:
+        if arm["at_tp"] == "half":
+            L["ps_done"] = True
+            return [("partial", 0.5)]
+        return [("exit", "take-profit")]
     if not L["added"]:
         if arm["add"] == "strength" and gross >= 8 and buyers_lead:
             L["added"] = True
@@ -341,11 +347,6 @@ def step(L, arm, price, liq, now, buyers_lead, high_score) -> list:
         elif arm["add"] == "dip" and gross <= -arm["sl"] / 2 and high_score and liq >= L["liq"] * 0.95:
             L["added"] = True
             acts.append(("add", L["cost"] * 0.5))
-    if gross >= arm["tp"]:
-        if arm["at_tp"] == "half":
-            L["ps_done"] = True
-            return acts + [("partial", 0.5)]
-        return acts + [("exit", "take-profit")]
     return acts
 
 

@@ -227,6 +227,24 @@ def m31_pair_ok(p: dict, age) -> bool:
             and 0.5 <= vl <= 2)
 
 
+# the v3.2 entry test's two groups: 5 m momentum window per label. Children keep their parent's label and window
+M32_ARMS = {"+3-5%": (3.0, 5.0), "+8-15%": (8.0, 15.0)}
+
+
+def inherit_arm(S, v):
+    """A child of a v3.2 test bot joins its parent's group: same m5_arm label, and its 5 m window kept inside that
+    group's range (mutation may move it within the range, never across), so the A/B comparison stays clean."""
+    par = S["variants"].get(v.get("parent") or "")
+    arm = par.get("m5_arm") if par else None
+    if arm not in M32_ARMS:
+        return
+    lo, hi = M32_ARMS[arm]
+    gn = v["genome"]
+    mn = min(hi - 1, max(lo, float(gn.get("min_m5") or 0)))
+    gn["min_m5"], gn["max_m5"] = mn, max(mn + 1, min(hi, float(gn.get("max_m5") or hi)))
+    v["m5_arm"] = arm
+
+
 def introduce_v32(S, events):
     """One-off (2026-10-25): v3.2 exits for everyone (see M31_LOCK_START) and an entry A/B test: half the active bots
     take +3-5% 5 m momentum, the other half +8-15%. Their children inherit the window, so evolution keeps the side
@@ -237,7 +255,8 @@ def introduce_v32(S, events):
     bots = active(S)
     random.shuffle(bots)
     for i, v in enumerate(bots):
-        lo, hi, arm = (3.0, 5.0, "+3-5%") if i % 2 else (8.0, 15.0, "+8-15%")
+        arm = "+3-5%" if i % 2 else "+8-15%"
+        lo, hi = M32_ARMS[arm]
         v["genome"] = clamp(dict(v["genome"], min_m5=lo, max_m5=hi, ps_at=min(25.0, max(20.0, v["genome"]["ps_at"]))))
         v["m5_arm"] = arm
         v["notes"].append(f"v3.2 entry test: 5 m momentum {arm}")
@@ -579,6 +598,7 @@ def new_variant(S, genome, gen, parent, notes):
          "reason": "", "paper_usd": START_USD, "start_usd": START_USD, "positions": {}, "closed": [],
          "cooldown": {}, "created": time.time(), "val_start": 0}
     S["variants"][vid] = v
+    inherit_arm(S, v)  # children stay in their parent's v3.2 entry-test group
     return v
 
 
@@ -963,8 +983,10 @@ def rug_ok(a: dict, p: dict) -> tuple[bool, str]:
     if age < HARD_MIN_AGE:
         return False, f"pair only {age:.0f} min old (min {HARD_MIN_AGE:.0f})"
     h, t = a.get("holders"), a.get("top10")
-    if h is None or t is None:
+    if h is None:
         return False, "holder data unavailable"
+    if t is None or a.get("mint_auth") is None or a.get("freeze_auth") is None:
+        return False, "safety data unavailable"  # unknown is not safe: no top-10 list or no authority fields
     # --- on-chain control
     if a.get("mint_auth"):
         return False, "mint authority not revoked (supply can be inflated)"
@@ -1302,8 +1324,13 @@ async def monitor(g, S, pc, events, notes_out):
                 whole_usd = pnl_usd + pos.get("realized_usd", 0.0)
                 whole_pct = whole_usd / (pos.get("orig_cost") or pos["cost_usd"]) * 100
                 rec = {"mint": mint, "pnl_pct": whole_pct, "pnl_usd": whole_usd, "win": whole_usd > 0,
-                       "why": why, "ts": now, "feat": pos.get("feat"), "name": pos["name"],
+                       "why": why, "ts": now, "entry_ts": pos.get("ts"), "feat": pos.get("feat"), "name": pos["name"],
                        "partial": pos["ps_frac"] if pos.get("ps_done") else None}
+                # append-only ledger of every closed trade (never pruned, unlike the per-bot lists), so the totals
+                # can be reconciled; pnl_usd is the whole trade (partial sell included), as in the bot's record
+                S.setdefault("ledger", []).append(
+                    {"mint": mint, "name": pos["name"], "bot": v["id"], "entry_ts": pos.get("ts"), "ts": now,
+                     "pnl_usd": whole_usd, "pnl_pct": whole_pct, "why": why, **({"rec": True} if pos.get("recovery") else {})})
                 if pos.get("recovery"):  # funds only: kept out of the bot's testing record
                     v.setdefault("recovery", []).append(rec)
                     R = S.setdefault("recovery_stats", {"n": 0, "wins": 0, "pnl": 0.0, "paused": False})
@@ -1419,8 +1446,8 @@ async def scan(g, S, pc, events):
                 if rc.get(k) is not None:
                     a[k] = rc[k]
             ts_cache = now
-            if a["holders"] is None or a["top10"] is None:
-                ts_cache = now - (ACACHE_TTL_MIN * 60 - 120)  # brand-new token, data not ready: retry in ~2 min
+            if a["holders"] is None or a["top10"] is None or a.get("mint_auth") is None or a.get("freeze_auth") is None:
+                ts_cache = now - (ACACHE_TTL_MIN * 60 - 120)  # safety data not ready: retry in ~2 min
             S["acache"][mint] = {"ts": ts_cache, "a": a}
 
         ok, why = rug_ok(a, p)
@@ -1646,18 +1673,19 @@ def leaderboard(S) -> str:
 
 def ab_lines(S, usd) -> list:
     """v3.2 entry test, judged per decision: bots entering one coin within the same 2 minutes are one decision, so a
-    crowd can't make one lucky (or unlucky) call look like many."""
+    crowd can't make one lucky (or unlucky) call look like many. Bots are grouped by their m5_arm label."""
     since = S.get("m32")
     if not since:
         return []
     out = []
-    for arm, test in (("+3-5%", lambda gn: gn["min_m5"] < 6.5), ("+8-15%", lambda gn: gn["min_m5"] >= 6.5)):
-        T = [t for v in S["variants"].values() if test(v["genome"]) for t in v["closed"] if t["ts"] >= since]
+    for arm in M32_ARMS:
+        T = [t for v in S["variants"].values() if v.get("m5_arm") == arm for t in v["closed"] if t["ts"] >= since]
         if not T:
             continue
         dec: dict = {}
-        for t in T:
-            dec[(t["mint"], round(t["ts"] / 120))] = dec.get((t["mint"], round(t["ts"] / 120)), 0.0) + t["pnl_usd"]
+        for t in T:  # by entry time; trades from before entry_ts was saved fall back to their close time
+            k = (t["mint"], round((t.get("entry_ts") or t["ts"]) / 120))
+            dec[k] = dec.get(k, 0.0) + t["pnl_usd"]
         pnl = sum(dec.values())
         out.append(f"🧪 {arm} entries: {len(dec)} decisions ({len(T)} trades), {usd(pnl)} = "
                    f"{usd(pnl / len(dec))}/decision, {sum(1 for x in dec.values() if x > 0)} won")
@@ -1804,6 +1832,9 @@ async def run(tb, g, loop_seconds: int):
     spread_entry_genes(S, events)      # one-off: each bot its own entry window inside v3.1
     fix_overloss(S, events)            # one-off: trades booked below -100% back to -100%
     introduce_v32(S, events)           # one-off: v3.2 exits, max 3 per coin, +3-5% vs +8-15% entry test
+    for v in active(S):                # bots bred before children inherited the label: their parent's group
+        if not v.get("m5_arm"):
+            inherit_arm(S, v)
     grow(S, events)  # 20 children of the strongest bots, once an hour
     ensure_population(S, events)
     pc: dict = {}
