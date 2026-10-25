@@ -59,6 +59,9 @@ ANALYZE_LIMIT = int(os.getenv("EVO_ANALYZE_LIMIT", "4"))         # fresh analyse
 CANDIDATE_LIMIT = int(os.getenv("EVO_CANDIDATE_LIMIT", "80"))
 COOLDOWN_MIN = 30
 ACACHE_TTL_MIN = 30
+# open positions are checked this often, in their own task: inside the main loop a slow scan (discovery, RugCheck)
+# held exits up for 20-40 s, so 6-8% stop-losses filled at a median -8.9% gross (10% of them past -14.7%)
+MONITOR_S = float(os.getenv("EVO_MONITOR_S", "5"))
 
 # hold window: no minimum hold; out by MAX_HOLD_FLAT minutes unless in profit, then never longer than HARD_HOLD
 HARD_HOLD = float(os.getenv("EVO_HARD_HOLD_MIN", "30"))      # only for trades that are in profit
@@ -1196,13 +1199,14 @@ async def purge_bad_prices(g, S, events):
 async def monitor(g, S, pc, events, notes_out):
     n_open = sum(len(v["positions"]) for v in S["variants"].values())
     patch_every = max(60, n_open * 0.8)  # keep Notion under its rate limit when many bots are open
-    await prefetch(g, pc, [m for v in S["variants"].values() if v["status"] != "retired" for m in v["positions"]], 8)
+    # every open position, retired bots' included (they still exit), so none falls back to one request each
+    await prefetch(g, pc, [m for v in S["variants"].values() for m in v["positions"]], MONITOR_S - 1)
     for v in list(S["variants"].values()):
         if v["status"] == "retired" and not v["positions"]:
             continue  # retired bots still see their open trades through to the exit, then stop
         for mint, pos in list(v["positions"].items()):
             try:
-                p = await get_pair(g, mint, pc, 8)
+                p = await get_pair(g, mint, pc, MONITOR_S - 1)
                 if not p or not p.get("priceUsd"):
                     continue
                 price = await checked_price(g, mint, float(p["priceUsd"]), pos.get("last_price") or pos["entry_price"])
@@ -1223,10 +1227,10 @@ async def monitor(g, S, pc, events, notes_out):
                     if now - pos.get("last_patch", 0) >= patch_every:  # keep Notion calls light
                         pos["last_patch"] = now
                         val = pos["size_tokens"] * price
-                        await auto.n_patch(g, pos.get("page_id"), {"properties": {
+                        _journal(lambda pos=pos, body={"properties": {
                             "Current Price (USD)": auto._num(price), "Current Value (USD)": auto._num(val),
                             "Unrealised PnL (USD)": auto._num(val - pos["cost_usd"]),
-                            "Unrealised PnL %": auto._num(gross / 100)}})
+                            "Unrealised PnL %": auto._num(gross / 100)}}: auto.n_patch(g, pos.get("page_id"), body))
                     continue
 
                 slip = RUG_EXIT_SLIP if why in ("liquidity collapse", "crash exit") else 0.0
@@ -1254,8 +1258,11 @@ async def monitor(g, S, pc, events, notes_out):
                 # overall running total across every bot (what the journal's P&L chart plots)
                 S["total_pnl"] = cum = (S.get("total_pnl") or 0.0) + pnl_usd
                 S["total_trades"] = S.get("total_trades", 0) + 1
-                result = "Win" if net > 0 else "Loss" if net < 0 else "Breakeven"
-                await asyncio.gather(auto.n_patch(g, pos.get("page_id"), {"archived": True}), auto.n_create(g, auto.DB_CLOSED, {
+                # the whole trade decides the label: after a partial sell the rest can lose while the trade won
+                result = "Win" if whole_usd > 0 else "Loss" if whole_usd < 0 else "Breakeven"
+                # journalled in the background (like entries), so a crowd of bots exiting one coin never delays
+                # the exits of the others; pos["page_id"] is read when the job runs, after its entry row exists
+                closed_row = {
                     "Token": auto._title(pos["name"]), "Mint": auto._text(mint),
                     "Entry Time": auto._date(pos["ts"]), "Exit Time": auto._date(now),
                     "Entry Price (USD)": auto._num(pos["entry_price"]), "Exit Price (USD)": auto._num(price),
@@ -1267,13 +1274,16 @@ async def monitor(g, S, pc, events, notes_out):
                     "Notes": auto._text(f"Variant {v['id']} gen{v['gen']} | peak "
                                         f"{(pos['peak_price'] / pos['entry_price'] - 1) * 100:+.0f}% | trail {pos['trail']}%"
                                         + (f" | rest after partial sell {pos['ps_frac']:.0%}; whole trade "
-                                           f"{whole_usd:+.2f} USD ({whole_pct:+.1f}%)" if pos.get("ps_done") else ""))}),
-                    auto.n_create(g, auto.DB_EVENTS, {
+                                           f"{whole_usd:+.2f} USD ({whole_pct:+.1f}%)" if pos.get("ps_done") else ""))}
+                event_row = {
                     "Event": auto._title(f"{'Exit' if why != 'Partial sell 100%' else why} {pos['name']} [{v['id']}]"),
                     "Type": auto._sel("Exit" if why != "Partial sell 100%" else why),
                     "Token": auto._text(pos["name"]), "Time": auto._date(now), "Price (USD)": auto._num(price),
                     "Realised PnL (USD)": auto._num(pnl_usd), "Cumulative PnL (USD)": auto._num(cum),
-                    "Mode": auto._sel("Paper")}))
+                    "Mode": auto._sel("Paper")}
+                _journal(lambda pos=pos: auto.n_patch(g, pos.get("page_id"), {"archived": True}),
+                         lambda r=closed_row: auto.n_create(g, auto.DB_CLOSED, r),
+                         lambda r=event_row: auto.n_create(g, auto.DB_EVENTS, r))
                 if NOTIFY_TRADES or why in ("liquidity collapse", "crash exit"):
                     events.append(f"[{v['id']}] closed {pos['name']} ({why}) {net:+.1f}% = {pnl_usd:+.2f} USD")
                 if not pos.get("recovery") and v["status"] != "retired":
@@ -1469,10 +1479,25 @@ _BG: set = set()
 _NOTION_SLOTS: list = []  # one asyncio.Semaphore, made inside the running loop
 
 
-async def _journal_entry(g, pos, open_row, event_row):
+def _slot() -> asyncio.Semaphore:
     if not _NOTION_SLOTS:
         _NOTION_SLOTS.append(asyncio.Semaphore(2))
-    async with _NOTION_SLOTS[0]:
+    return _NOTION_SLOTS[0]
+
+
+def _journal(*calls):
+    """Run Notion writes (functions returning coroutines) in the background, sharing the entry rows' pace."""
+    async def job():
+        async with _slot():
+            await asyncio.gather(*(c() for c in calls))
+            await asyncio.sleep(0.35)  # Notion allows about 3 requests a second
+    task = asyncio.create_task(job())
+    _BG.add(task)
+    task.add_done_callback(_BG.discard)
+
+
+async def _journal_entry(g, pos, open_row, event_row):
+    async with _slot():
         page_id, _ = await asyncio.gather(auto.n_create(g, auto.DB_OPEN, open_row), auto.n_create(g, auto.DB_EVENTS, event_row))
         pos["page_id"] = page_id
         await asyncio.sleep(0.35)  # Notion allows about 3 requests a second
@@ -1605,7 +1630,6 @@ async def flush(tb, g, S, events):
             await menu.say(tb, g, S, c)
         except Exception as ex:
             log.warning("notify failed: %s", ex)
-    events.clear()
     if chunks:
         try:
             await menu.keep_menu_last(tb, g, S)
@@ -1696,12 +1720,23 @@ async def run(tb, g, loop_seconds: int):
     ensure_population(S, events)
     pc: dict = {}
     start = time.time()
-    last_scan = last_mon = last_clean = last_goal = last_save = 0.0
+    last_scan = last_clean = last_goal = last_save = 0.0
     # Telegram runs in its own task with long polling, so taps and messages are answered within about a second
     # instead of waiting for the next 10 s tick and for slow scans / Notion writes to finish.
     tg = asyncio.create_task(menu.poll(tb, g, S, pc))
     import trainee
     tr = asyncio.create_task(trainee.loop(g, S, pc))  # the intensely trained bot, beside the main loop
+
+    async def _exits():  # exits never wait for a scan
+        while True:
+            try:
+                await monitor(g, S, pc, events, None)
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                log.exception("monitor error: %s", e)
+            await asyncio.sleep(MONITOR_S)
+    mon = asyncio.create_task(_exits())
     family = cumfix = None
     try:
         if auto.NOTION_TOKEN and not S.get("cum_fixed"):
@@ -1728,8 +1763,6 @@ async def run(tb, g, loop_seconds: int):
         while True:
             now = time.time()
             try:
-                if now - last_mon >= 10:
-                    await monitor(g, S, pc, events, None); last_mon = now
                 if now - last_scan >= 20:
                     await scan(g, S, pc, events); last_scan = now
                 if now - last_goal >= 300:  # consistent-bot milestone and proof test
@@ -1747,10 +1780,10 @@ async def run(tb, g, loop_seconds: int):
                 break
             await asyncio.sleep(10)
     finally:
-        for t in (tg, tr, family, cumfix):  # an unfinished correction simply continues next run
+        for t in (mon, tg, tr, family, cumfix):  # an unfinished correction simply continues next run
             if t:
                 t.cancel()
-        await asyncio.gather(*(t for t in (tg, tr, family, cumfix) if t), return_exceptions=True)
-        if _BG:  # let queued Notion entry rows finish (bounded), so trades opened at the end keep their rows
-            await asyncio.wait(list(_BG), timeout=60)
+        await asyncio.gather(*(t for t in (mon, tg, tr, family, cumfix) if t), return_exceptions=True)
+        if _BG:  # let queued Notion rows (entries, exits) finish, bounded well inside the job's 32-min timeout
+            await asyncio.wait(list(_BG), timeout=180)
         save(S)

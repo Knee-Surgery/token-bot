@@ -92,7 +92,7 @@ def checks(p: dict, a: dict, track: dict, now: float | None = None) -> list:
     ch = p.get("priceChange") or {}
     up = sum(1 for k in ("h1", "h6") if (ch.get(k) or 0) > 0)
     crashed = (ch.get("h6") or 0) <= -50 or (ch.get("h24") or 0) <= -70
-    add("Trend", "1h and 6h price", f"1h {ch.get('h1', 0):+g}%, 6h {ch.get('h6', 0):+g}%",
+    add("Trend", "1h and 6h price", f"1h {ch.get('h1') or 0:+g}%, 6h {ch.get('h6') or 0:+g}%",
         "pass both up, warn one, fail if 6h <=-50% or 24h <=-70%",
         FAIL if crashed else PASS if up == 2 else WARN if up == 1 else FAIL, 1)
     created = p.get("pairCreatedAt")
@@ -148,8 +148,8 @@ def report(name: str, mint: str, p: dict, a: dict, track: dict, now: float | Non
     lines = [f"🔎 COIN REPORT: {name}  {mint[:4]}…{mint[-4:]}",
              f"Evidence score {sc if sc is not None else '?'}/100: {tally[PASS]} {PASS} {tally[WARN]} {WARN} "
              f"{tally[FAIL]} {FAIL}" + (f", {tally[NODATA]} no data" if tally[NODATA] else ""),
-             f"Price {p.get('priceUsd')}  5m {ch.get('m5', 0):+g}%  1h {ch.get('h1', 0):+g}%  6h {ch.get('h6', 0):+g}%  "
-             f"24h {ch.get('h24', 0):+g}% (facts, not scored)",
+             f"Price {p.get('priceUsd')}  5m {ch.get('m5') or 0:+g}%  1h {ch.get('h1') or 0:+g}%  "
+             f"6h {ch.get('h6') or 0:+g}%  24h {ch.get('h24') or 0:+g}% (facts, not scored)",
              f"Attention: {boosts} paid DexScreener boosts; socials: {', '.join(socials) or 'none listed'} (not scored)"]
     db = deal_breakers(cs)
     if db:
