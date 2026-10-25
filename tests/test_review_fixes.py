@@ -108,7 +108,6 @@ def t2():
     check(kids and all(k.get("m5_arm") == S["variants"][k["parent"]].get("m5_arm") for k in kids),
           f"grow(): {len(kids)} children all carry their parent's label")
     # ab_lines groups by label and entry time
-    T = {"since": S["m32"]}
     A = S["variants"][par["id"]]; B = S["variants"][par2["id"]]
     for v in S["variants"].values():  # retired bots too: only the test trades below may count
         v["closed"] = [t for t in v["closed"] if t["ts"] < S["m32"]]
@@ -142,20 +141,20 @@ def t3():
     check(acts and acts[0][0] == "add", f"dip add unaffected: {acts}")
     print("--- trainee: hard stop at -5%")
     arm2 = {"tp": 35, "sl": 10, "add": "none", "at_tp": "half"}
-    L = trainee.new_leg(1.0, 1.0, 50000, now); L["ps_done"] = True  # the half left after a take-profit
-    acts = trainee.step(L, arm2, 0.70, 50000, now, False, False)
-    check(acts == [("exit", "hard stop -5%")], f"the half left after a take-profit, at -30%: {acts}")
+    L = trainee.new_leg(1.0, 1.0, 50000, now); L["ps_done"] = True; L["last"] = 0.96  # the half left after a take-profit
+    acts = trainee.step(L, arm2, 0.94, 50000, now, False, False)
+    check(acts == [("exit", "hard stop -5%")], f"the half left after a take-profit, sliding to -6%: {acts}")
     L = trainee.new_leg(1.0, 1.0, 50000, now)
     check(trainee.step(L, arm2, 0.96, 50000, now, False, False) == [], "-4%: held")
     L = trainee.new_leg(1.0, 1.0, 50000, now)
     acts = trainee.step(L, arm2, 0.949, 50000, now, False, False)
     check(acts == [("exit", "hard stop -5%")], f"-5%: sold ({acts})")
-    L = trainee.new_leg(1.0, 1.0, 50000, now)
+    L = trainee.new_leg(1.0, 1.0, 50000, now); L["last"] = 0.92
     acts = trainee.step(L, arm2, 0.89, 50000, now, False, False)
     check(acts == [("exit", "hard stop -5%")], f"-11%: the 5% hard stop, not the plan's 10% ({acts})")
     L = trainee.new_leg(1.0, 1.0, 50000, now)
     acts = trainee.step(L, arm2, 0.60, 50000, now, False, False)
-    check(acts == [("exit", "hard stop -5%")], f"a jump straight to -40%: sold at once, at the real price ({acts})")
+    check(acts == [("exit", "crash exit")], f"a jump straight to -40% in one tick: sold at once as a crash ({acts})")
 
 def t4():
     print("--- 4. ledger + entry_ts on closed trades")

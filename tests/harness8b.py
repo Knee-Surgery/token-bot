@@ -58,6 +58,7 @@ async def main():
     S["total_pnl"] = 0.0
     notion.clear()
     await evo.monitor({}, S, {mint: (time.time(), pair(1.12))}, [], None)  # +12% gross -> partial 25%
+    if evo._BG: await asyncio.wait(list(evo._BG))  # partial-sell rows are written in the background, like exits
     pos = v["positions"].get(mint)
     part_pnl = 4.0 * 0.25 * (12 - evo.COST_PCT) / 100
     check(pos and pos["ps_done"] and abs(pos["cost_usd"] - 3.0) < 1e-9, "25% sold at +12%, 75% of the position still open")

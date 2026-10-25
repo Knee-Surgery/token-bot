@@ -1,5 +1,5 @@
 """Recorder (paths.py) and virtual replay (bench.py). Usage: python test_paths_bench.py <src> <run dir>"""
-import asyncio, os, sys, time, json, gzip, calendar
+import asyncio, os, sys, time, json, gzip
 from collections import Counter
 SRC, RUN = sys.argv[1], sys.argv[2]
 os.chdir(RUN); sys.path.insert(0, SRC)

@@ -20,6 +20,8 @@ Tests (arguments: repo folder, run folder):
   test_paths_bench   price-path recorder (paths.py) and virtual replay (bench.py)
   test_x1        line X1: 10 founders, population 50 + 10, breeding hold, founder priority and 15/30-trade report
   test_v33       v3.3: 25% whole-trade take-profit, partial-sell ladder, protective floors, monitor = replay
+  test_review2   losing-coin rule on the ledger by entry decision, background partial-sell rows, founders' records
+                 starting with v3.3, trainee exit labels
 """
 import os, shutil, subprocess, sys, tempfile, time
 from pathlib import Path
@@ -27,7 +29,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SRC = HERE.parent
 TESTS = ["harness2", "harness3b", "harness4", "harness8b", "harness17", "harness27",
-         "test_review_fixes", "test_menu6h", "test_paths_bench", "test_x1", "test_v33"]
+         "test_review_fixes", "test_menu6h", "test_paths_bench", "test_x1", "test_v33", "test_review2"]
 
 
 def run(name: str) -> tuple[bool, str, float]:

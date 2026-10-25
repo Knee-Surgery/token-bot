@@ -9,6 +9,8 @@ fails = []
 def check(c, m): print(("PASS " if c else "FAIL ") + m); c or fails.append(m)
 
 S = evo.load()
+for k in ("x1_founders", "breed_hold", "pop_cut", "pop_cap", "m33"):  # the live state may already hold the line
+    S.pop(k, None)
 open0 = {v["id"] for v in S["variants"].values() if v["positions"]}
 ev = []
 evo.crossbreed(S, ev)

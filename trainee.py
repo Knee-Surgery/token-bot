@@ -329,12 +329,12 @@ def step(L, arm, price, liq, now, buyers_lead, high_score) -> list:
     peak_gain = (L["peak"] / avg - 1) * 100
     if peak_gain >= LOCK_START:  # ratchet: up with the best gain, never down
         L["lock"] = max(L.get("lock") if L.get("lock") is not None else -1e9, lock_level(peak_gain))
-    if gross <= -HARD_STOP:  # owner: whatever the plan, no trade is held past -HARD_STOP%
-        return [("exit", f"hard stop -{HARD_STOP:g}%")]
     if liq < L["liq"] * (1 - evo.RUG_LIQ_DROP):
         return [("exit", "liquidity collapse")]
     if price < prev * (1 - evo.CRASH_TICK_PCT / 100):
         return [("exit", "crash exit")]
+    if gross <= -HARD_STOP:  # owner: whatever the plan, no trade is held past -HARD_STOP%
+        return [("exit", f"hard stop -{HARD_STOP:g}%")]
     if L.get("lock") is not None and gross <= L["lock"]:
         return [("exit", f"profit-lock stop (kept +{L['lock']:.1f}%)")]
     if L["ps_done"]:  # the half still running after the take-profit: only the profit lock can end it

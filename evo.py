@@ -213,7 +213,7 @@ BAD_COIN_TRADES, BAD_COIN_H = 10, 24
 # Replayed on 213 decisions: the ones right after a losing decision on the same coin made -6.1% each (25 of 108 won),
 # the rest -5.2%; skipping them would have saved $96.86 of $135.51
 LAST_LOSS_H = float(os.getenv("EVO_LAST_LOSS_H", "6"))
-DECISION_S = 180  # exits on one coin within this many seconds are one decision (the bots that went in together)
+DECISION_S = 180  # entries into one coin within this many seconds are one decision (the bots that went in together)
 
 
 def m31_pair_ok(p: dict, age) -> bool:
@@ -278,6 +278,13 @@ def introduce_v33(S, events):
         if v.get("founder") and v.get("line") == LINE:
             _, _, _, ps, step, frac = X1_DESIGN[int(v["id"].split("-")[1]) - 1]
             gn.update(ps_at=ps, ps_step=step, ps_frac=frac)
+            # the founders are ranked for the owner's pick: their record starts with v3.3, so it only holds trades
+            # made with their founder genes and the v3.3 exits. Earlier trades (some made before the redesign, under
+            # the v2171 x v1844 cross) and trades still open from before go to closed_pre; their money still counts
+            v["closed_pre"] = v.get("closed_pre", []) + v["closed"]
+            v["closed"] = []
+            for pos in v["positions"].values():
+                pos["pre"] = True
         else:
             gn.update(ps_at=round(random.uniform(10, 30), 1), ps_step=round(random.uniform(10, 30), 1),
                       ps_frac=random.choice((0.25, 0.5)))
@@ -288,15 +295,35 @@ def introduce_v33(S, events):
                   f"floors at +{FLOOR_HI:g}% and 0%; every trade now counts in testing (8% rule dropped).")
 
 
+def coin_trades(S, mint, now, hours) -> list:
+    """Closed trades on one coin in the last `hours`, oldest first. From the append-only ledger (it keeps the trades of
+    bots retired and dropped from the state, and the founders' earlier trades), plus the bots' own lists for the time
+    before the ledger existed. Recovery trades are left out."""
+    cut = now - hours * 3600
+    L = S.get("ledger") or []
+    out = []
+    for t in reversed(L):  # the ledger is in closing order: stop at the first row older than the window
+        if t["ts"] < cut:
+            break
+        if t["mint"] == mint and not t.get("rec"):
+            out.append(t)
+    start = L[0]["ts"] if L else float("inf")
+    if cut < start:
+        out += [t for v in S["variants"].values() for t in v["closed"] if t["mint"] == mint and cut <= t["ts"] < start]
+    return sorted(out, key=lambda t: t["ts"])
+
+
 def coin_losing(S, mint, now) -> str | None:
     """Why the bots should stay out of this coin: BAD_COIN_TRADES+ closed trades on it in the last BAD_COIN_H hours
-    and net negative, or their last decision on it (within LAST_LOSS_H hours) lost money. None if neither."""
-    T = sorted((t for v in S["variants"].values() for t in v["closed"]
-                if t["mint"] == mint and now - t["ts"] <= BAD_COIN_H * 3600), key=lambda t: t["ts"])
+    and net negative, or their last decision on it (within LAST_LOSS_H hours) lost money. None if neither. A decision
+    is the bots that entered the coin together (entry times within DECISION_S): under v3.3 they leave at different
+    times (partial sells, locks, floors), so grouping by exit time could split one decision."""
+    T = coin_trades(S, mint, now, BAD_COIN_H)
     if len(T) >= BAD_COIN_TRADES and sum(t["pnl_usd"] for t in T) < 0:
         return "bots keep losing on it (24h)"
     if T and now - T[-1]["ts"] <= LAST_LOSS_H * 3600:
-        last = [t for t in T if T[-1]["ts"] - t["ts"] <= DECISION_S]
+        e = T[-1].get("entry_ts") or T[-1]["ts"]
+        last = [t for t in T if abs((t.get("entry_ts") or t["ts"]) - e) <= DECISION_S]
         if sum(t["pnl_usd"] for t in last) < 0:
             return f"last decision on it lost ({LAST_LOSS_H:g}h)"
     return None
@@ -836,9 +863,9 @@ def grow(S, events):
 # selective breeding (owner, 2026-10-25): line X1 starts from 10 founders, generation 1, with deliberately different
 # genes, so their trades show which settings work. (A first plan crossed v2171 x v1844, but under Momentum v3.2 those
 # two are near-copies in every gene that is used, so it would have made 10 copies of one strategy.) The genes that
-# decide v3.2 trades are spread over their whole usable range: 5 m momentum window (3-15%), minimum liquidity
-# ($30k-150k), stop-loss (6-8%) and partial-sell level (+20-25%); each level is used about equally often and every
-# founder has its own window. The stake is the same for all (31%), so their dollar results compare directly. The
+# decide trades are spread over their whole usable range: 5 m momentum window (3-15%), minimum liquidity
+# ($30k-120k), stop-loss (6-8%) and, since v3.3, the partial-sell ladder (first sale +10/20/30%, every +10/20%, a
+# quarter or half); each level is used about equally often and every founder has its own window. The stake is the same for all (31%), so their dollar results compare directly. The
 # genes v3.2 ignores are spread at random within their bounds, for when the momentum rules are switched off.
 # Until the owner picks the 2 parents of the next generation (after about 15-30 trades each), the founders are never
 # retired by the checks, they get first pick of the per-coin slots, and no new bots are bred (breed_hold).
@@ -888,10 +915,12 @@ def x1_genome(i: int) -> dict:
 
 def crossbreed(S, events):
     """One-off: the 10 founders of line X1 (X1_DESIGN). If an earlier version already made X1 bots, the first 10
-    get the founder genes in place (same ids, trade history cleared from testing) and any later X1 bots retire."""
+    get the founder genes in place (same ids) and any later X1 bots retire. Their records start over when v3.3
+    goes live (introduce_v33 moves earlier trades to closed_pre)."""
     if S.get("x1_founders"):
         return
-    S["x1_founders"] = S["cross_bred"] = S.get("cross_bred") or time.time()
+    S["x1_founders"] = time.time()
+    S["cross_bred"] = S.get("cross_bred") or S["x1_founders"]
     S["breed_hold"] = True
     old = sorted((v for v in S["variants"].values() if v.get("line") == LINE), key=lambda v: v["id"])
     made = []
@@ -1368,10 +1397,11 @@ async def partial_sell(g, S, v, mint, pos, price, now, frac=None):
     pos["size_tokens"] -= part_tokens
     v["paper_usd"] += pnl
     S["total_pnl"] = cum = (S.get("total_pnl") or 0.0) + pnl
-    await asyncio.gather(
-        auto.n_patch(g, pos.get("page_id"), {"properties": {
-            "Size (Tokens)": auto._num(pos["size_tokens"]), "Cost Basis (USD)": auto._num(pos["cost_usd"])}}),
-        auto.n_create(g, auto.DB_CLOSED, {
+    # journalled in the background like entries and exits: under v3.3 bots sell parts often, and waiting for Notion
+    # here held up every other bot's exit checks. Values are taken now; the page id when the job runs (the entry row
+    # may still be on its way)
+    left = {"properties": {"Size (Tokens)": auto._num(pos["size_tokens"]), "Cost Basis (USD)": auto._num(pos["cost_usd"])}}
+    closed_row = {
             "Token": auto._title(pos["name"]), "Mint": auto._text(mint),
             "Entry Time": auto._date(pos["ts"]), "Exit Time": auto._date(now),
             "Entry Price (USD)": auto._num(pos["entry_price"]), "Exit Price (USD)": auto._num(price),
@@ -1380,11 +1410,14 @@ async def partial_sell(g, S, v, mint, pos, price, now, frac=None):
             "Result": auto._sel("Win" if pnl > 0 else "Loss"), "Exit Reason": auto._sel(label),
             "Score": auto._num(pos.get("score")), "Holders": auto._num(pos.get("holders")),
             "Top 10 %": auto._num(pos.get("top10")), "Mode": auto._sel("Paper"),
-            "Notes": auto._text(f"Variant {v['id']} gen{v['gen']} | {label} of the position, the rest stays open")}),
-        auto.n_create(g, auto.DB_EVENTS, {
+            "Notes": auto._text(f"Variant {v['id']} gen{v['gen']} | {label} of the position, the rest stays open")}
+    event_row = {
             "Event": auto._title(f"{label} {pos['name']} [{v['id']}]"), "Type": auto._sel(label),
             "Token": auto._text(pos["name"]), "Time": auto._date(now), "Price (USD)": auto._num(price),
-            "Realised PnL (USD)": auto._num(pnl), "Cumulative PnL (USD)": auto._num(cum), "Mode": auto._sel("Paper")}))
+            "Realised PnL (USD)": auto._num(pnl), "Cumulative PnL (USD)": auto._num(cum), "Mode": auto._sel("Paper")}
+    _journal(lambda pos=pos, b=left: auto.n_patch(g, pos.get("page_id"), b),
+             lambda r=closed_row: auto.n_create(g, auto.DB_CLOSED, r),
+             lambda r=event_row: auto.n_create(g, auto.DB_EVENTS, r))
 
 
 _jup: dict = {}
@@ -1583,6 +1616,8 @@ async def monitor(g, S, pc, events, notes_out):
                         R["paused"] = True
                         events.append(f"⚠️ Recovery trades paused: {R['n']} trades lost "
                                       f"${-R['pnl']:,.2f}. Small targets can't beat trading costs here.")
+                elif pos.get("pre"):  # opened before the founder's record started (introduce_v33): money only
+                    v.setdefault("closed_pre", []).append(rec)
                 else:
                     v["closed"].append(rec)
                 S["total_wins"] = S.get("total_wins", 0) + (whole_usd > 0)

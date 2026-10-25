@@ -1,4 +1,4 @@
-import asyncio, os, sys, time, json
+import asyncio, os, sys, time
 SRC, RUN = sys.argv[1], sys.argv[2]
 os.chdir(RUN); sys.path.insert(0, SRC)
 os.environ.update(TELEGRAM_BOT_TOKEN="1:x", EVO_POP="300"); os.environ.pop("NOTION_TOKEN", None)

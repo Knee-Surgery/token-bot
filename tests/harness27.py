@@ -1,5 +1,5 @@
 """Coin reports: live reports for coins the bots traded today, then the scan hook on the real saved state."""
-import asyncio, os, sys, time, random, urllib.request, json
+import asyncio, os, sys, time, random
 
 SRC, RUN = sys.argv[1], sys.argv[2]
 os.chdir(RUN); sys.path.insert(0, SRC)
