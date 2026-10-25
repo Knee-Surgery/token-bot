@@ -46,7 +46,9 @@ CHECK_1 = int(os.getenv("EVO_CHECK_1", "5"))        # first profitability check 
 EVAL_AFTER = CHECK_2 = int(os.getenv("EVO_CHECK_2", "10"))  # second check, same requirements; passing it graduates to validation
 # max bots in one token at once (0 = no limit). 10 (owner, 2026-10-24): with no limit the whole population piled into
 # 2 coins in one hour and a single stop-out (DOPE, ~360 bots) cost $50.96
-MAX_PER_TOKEN = int(os.getenv("EVO_MAX_PER_TOKEN", "10")) or 10 ** 9
+# 3 (2026-10-25): at 10, the 2,141 v3.1 trades were only ~228 separate decisions (median 7 bots in the same entry, up
+# to 125), so one coin's luck decided many bots' records at once and evolution was judging noise
+MAX_PER_TOKEN = int(os.getenv("EVO_MAX_PER_TOKEN", "3")) or 10 ** 9
 KEEP_RETIRED = max(150, POP // 2)
 VAL_TRADES = int(os.getenv("EVO_VAL_TRADES", "30"))
 VAL_CHECK = int(os.getenv("EVO_VAL_CHECK", "5"))     # early check inside validation (same requirements)
@@ -190,21 +192,60 @@ def introduce_strategy(S, events):
 # partial-sell level (20-30%), which evolution keeps tuning, and its own entry window inside v3.1's (m31_window:
 # min_m5, max_m5, min_liq); the other genes are not used while this is on.
 MOMENTUM = os.getenv("EVO_MOMENTUM", "v3.1").strip().lower().replace("off", "")  # "off": back to the evolved genes
-M31_LOCK_START = 5   # rising profit lock switches on once a trade has been up this much (gross %)
-# 5 m momentum ceiling, was 15 (owner, 2026-10-24 20:15 UTC): since the per-coin cap, entries at +5-15% made 177 trades
-# on 6 coins, all 6 losing, -$22.84 (-$0.13/trade); entries at +3-5% made 444 trades on 10 coins, -$7.74 (-$0.02/trade)
-M31_M5_MAX = float(os.getenv("EVO_M31_M5_MAX", "5"))
+# v3.2 exits (2026-10-25, "fewer, bigger, lopsided bets"): under v3.1 the median profit-lock exit netted +0.33% (62%
+# under +1%) while stop-losses averaged -12.3%, so the bots needed ~80% wins to break even and won 33%. The 43 trades
+# that reached the partial sell were all winners (+28.6% average). So: no lock until a trade has been up M31_LOCK_START,
+# the lock never keeps less than M31_LOCK_MIN_NET after costs, and the half left after the partial sell trails
+# M31_RUNNER_TRAIL below its peak
+M31_LOCK_START = float(os.getenv("EVO_M31_LOCK_START", "12"))      # gross %
+M31_LOCK_MIN_NET = float(os.getenv("EVO_M31_LOCK_MIN_NET", "5"))   # net % the lock keeps at the least
+M31_RUNNER_TRAIL = float(os.getenv("EVO_M31_RUNNER_TRAIL", "10"))  # % below the peak, after the partial sell
+# 5 m momentum ceiling: 15 again (2026-10-25). Each bot's own window (m31_window) decides; v3.2 splits the bots into
+# a +3-5% half and a +8-15% half (the only v3.1 entry bucket in profit: 248 trades, +0.67%/trade) to settle it on data
+M31_M5_MAX = float(os.getenv("EVO_M31_M5_MAX", "15"))
+# liquidity ceiling: v3.1 entries above $250k won 7 of 189 trades (-10.3%/trade)
+M31_MAX_LIQ = float(os.getenv("EVO_M31_MAX_LIQ", "250000"))
+# coins the bots keep losing on are skipped: 10+ trades in the last 24 h and net negative (TRUMP and DOPE: 324
+# trades, 0 wins, -$55.55 under v3.1)
+BAD_COIN_TRADES, BAD_COIN_H = 10, 24
 
 
 def m31_pair_ok(p: dict, age) -> bool:
-    """v3.1 entry, the market part: 4 h+, liquidity >= $30k, the hour and the 6 h trend rising, 5 m momentum +3% to
-    M31_M5_MAX (no chasing bigger spikes), buyers outnumber sellers in the last 5 m, 1 h volume 0.5-2x liquidity."""
+    """v3.1 entry, the market part: 4 h+, liquidity $30k-M31_MAX_LIQ, the hour and the 6 h trend rising, 5 m momentum
+    +3% to M31_M5_MAX, buyers outnumber sellers in the last 5 m, 1 h volume 0.5-2x liquidity."""
     ch, tx = p.get("priceChange") or {}, (p.get("txns") or {}).get("m5") or {}
     liq = (p.get("liquidity") or {}).get("usd", 0) or 0
     vl = ((p.get("volume") or {}).get("h1", 0) or 0) / liq if liq else 0
-    return (age is not None and age >= HARD_MIN_AGE and liq >= 30000 and (ch.get("h1") or 0) > 0
+    return (age is not None and age >= HARD_MIN_AGE and 30000 <= liq <= M31_MAX_LIQ and (ch.get("h1") or 0) > 0
             and (ch.get("h6") or 0) > 0 and 3 <= (ch.get("m5") or 0) <= M31_M5_MAX and tx.get("buys", 0) > tx.get("sells", 0)
             and 0.5 <= vl <= 2)
+
+
+def introduce_v32(S, events):
+    """One-off (2026-10-25): v3.2 exits for everyone (see M31_LOCK_START) and an entry A/B test: half the active bots
+    take +3-5% 5 m momentum, the other half +8-15%. Their children inherit the window, so evolution keeps the side
+    that makes money. Open trades keep their lock settings from entry."""
+    if S.get("m32") or not MOMENTUM:
+        return
+    S["m32"] = time.time()
+    bots = active(S)
+    random.shuffle(bots)
+    for i, v in enumerate(bots):
+        lo, hi, arm = (3.0, 5.0, "+3-5%") if i % 2 else (8.0, 15.0, "+8-15%")
+        v["genome"] = clamp(dict(v["genome"], min_m5=lo, max_m5=hi, ps_at=min(25.0, max(20.0, v["genome"]["ps_at"]))))
+        v["m5_arm"] = arm
+        v["notes"].append(f"v3.2 entry test: 5 m momentum {arm}")
+    events.append(f"🆕 Momentum v3.2 live for {len(bots)} bots: no profit lock until +{M31_LOCK_START:g}% (then at "
+                  f"least +{M31_LOCK_MIN_NET:g}% kept), half sold at +20-25%, the rest trails {M31_RUNNER_TRAIL:g}% "
+                  f"below its peak; max {MAX_PER_TOKEN} bots per coin; no coins over ${M31_MAX_LIQ / 1000:.0f}k "
+                  f"liquidity or that keep losing. Entry test: half the bots +3-5%, half +8-15%.")
+
+
+def coin_losing(S, mint, now) -> bool:
+    """BAD_COIN_TRADES+ closed trades on this coin in the last BAD_COIN_H hours, and net negative."""
+    T = [t for v in S["variants"].values() for t in v["closed"]
+         if t["mint"] == mint and now - t["ts"] <= BAD_COIN_H * 3600]
+    return len(T) >= BAD_COIN_TRADES and sum(t["pnl_usd"] for t in T) < 0
 
 
 def m31_window(gn: dict) -> tuple:
@@ -227,23 +268,30 @@ def m31_holders_ok(a: dict) -> bool:
 
 
 def m31_lock(peak_gain) -> float:
-    return max(COST_PCT + 0.5, peak_gain * min(0.8, 0.4 + peak_gain / 100))  # +10 -> +5, +20 -> +12, +60 -> +48
+    # +12 -> +7.5 (the floor: 5% net), +20 -> +12, +30 -> +21, +60 -> +48
+    return max(COST_PCT + M31_LOCK_MIN_NET, peak_gain * min(0.8, 0.4 + peak_gain / 100))
 
 
 def m31_exits(gn: dict) -> dict:
     return dict(gn, tp=1000, hold=30, sl=min(8.0, max(6.0, float(gn["sl"]))), ps_frac=0.5,
-                ps_at=min(30.0, max(20.0, float(gn["ps_at"]))), m31=True)
+                ps_at=min(25.0, max(20.0, float(gn["ps_at"]))), m31=True)
 
 
 def m31_exit(pos: dict, price: float, liq: float, now: float) -> str | None:
-    """v3.1 exits: rising profit lock from +5% (never moves down, at least the costs + 0.5%), stop-loss, out by 30 min,
-    crash and liquidity exits. Half the position is sold at ps_at by the monitor's partial sell; the rest rides here."""
+    """v3.2 exits: rising profit lock from +M31_LOCK_START% (never moves down, keeps at least M31_LOCK_MIN_NET% after
+    costs), stop-loss, out by 30 min, crash and liquidity exits. Half the position is sold at ps_at by the monitor's
+    partial sell; the rest rides here behind a trailing stop M31_RUNNER_TRAIL% below its peak (or the lock, if higher)."""
     gross = (price / pos["entry_price"] - 1) * 100
     prev, pos["last_price"] = pos.get("last_price", price), price
     pos["peak_price"] = max(pos.get("peak_price", pos["entry_price"]), price)
     peak = (pos["peak_price"] / pos["entry_price"] - 1) * 100
     if peak >= M31_LOCK_START:
-        pos["lock"] = max(pos.get("lock") if pos.get("lock") is not None else -1e9, m31_lock(peak))
+        if pos.get("ps_done"):  # the runner: a looser trail than the lock, so the half left can keep going
+            lock = max(COST_PCT + M31_LOCK_MIN_NET,
+                       (pos["peak_price"] * (1 - M31_RUNNER_TRAIL / 100) / pos["entry_price"] - 1) * 100)
+        else:
+            lock = m31_lock(peak)
+        pos["lock"] = max(pos.get("lock") if pos.get("lock") is not None else -1e9, lock)  # never moves down
     if liq < pos["entry_liq"] * (1 - RUG_LIQ_DROP):
         return "liquidity collapse"
     if prev > 0 and price < prev * (1 - CRASH_TICK_PCT / 100):
@@ -1334,6 +1382,10 @@ async def scan(g, S, pc, events):
                            and entry_ok(p, v["genome"], age))]
         if not wanting:
             continue
+        if MOMENTUM and coin_losing(S, mint, now):
+            rs = S.setdefault("rejects", {})
+            rs["bots keep losing on it (24h)"] = rs.get("bots keep losing on it (24h)", 0) + 1
+            continue
         ac = S["acache"].get(mint)
         if ac and now - ac["ts"] < ACACHE_TTL_MIN * 60:
             a = ac["a"]
@@ -1578,6 +1630,26 @@ def leaderboard(S) -> str:
             f"\nValidated candidates: {', '.join(validated) or 'none yet'}" + why)
 
 
+def ab_lines(S, usd) -> list:
+    """v3.2 entry test, judged per decision: bots entering one coin within the same 2 minutes are one decision, so a
+    crowd can't make one lucky (or unlucky) call look like many."""
+    since = S.get("m32")
+    if not since:
+        return []
+    out = []
+    for arm, test in (("+3-5%", lambda gn: gn["min_m5"] < 6.5), ("+8-15%", lambda gn: gn["min_m5"] >= 6.5)):
+        T = [t for v in S["variants"].values() if test(v["genome"]) for t in v["closed"] if t["ts"] >= since]
+        if not T:
+            continue
+        dec: dict = {}
+        for t in T:
+            dec[(t["mint"], round(t["ts"] / 120))] = dec.get((t["mint"], round(t["ts"] / 120)), 0.0) + t["pnl_usd"]
+        pnl = sum(dec.values())
+        out.append(f"🧪 {arm} entries: {len(dec)} decisions ({len(T)} trades), {usd(pnl)} = "
+                   f"{usd(pnl / len(dec))}/decision, {sum(1 for x in dec.values() if x > 0)} won")
+    return out
+
+
 ALERTS = ("🎯", "✅", "❌", "🆕", "⭐", "⚠️", "🔎", "🧬")  # sent straight away; everything else only feeds the hourly summary
 DIGEST_MIN = float(os.getenv("TG_DIGEST_MIN", "60"))
 
@@ -1619,6 +1691,7 @@ async def flush(tb, g, S, events):
                 if rn:
                     lines.append(f"🔁 Recovery: {rn} trades, {menu.usd(R.get('pnl', 0.0) - D.get('rec_pnl', 0.0))}")
             lines.append(f"Total: {menu.usd(S.get('total_pnl') or 0.0)}")
+            lines += ab_lines(S, menu.usd)
             if D["new"] or D["retired"]:
                 lines.append(f"Bots: {D['new']} new, {D['retired']} retired")
             lines += trainee.digest_lines(S, D)
@@ -1716,6 +1789,7 @@ async def run(tb, g, loop_seconds: int):
     replace_with_strongest(S, events)  # one-off: every bot from the strongest genes (skipped once cloned)
     spread_entry_genes(S, events)      # one-off: each bot its own entry window inside v3.1
     fix_overloss(S, events)            # one-off: trades booked below -100% back to -100%
+    introduce_v32(S, events)           # one-off: v3.2 exits, max 3 per coin, +3-5% vs +8-15% entry test
     grow(S, events)  # 20 children of the strongest bots, once an hour
     ensure_population(S, events)
     pc: dict = {}
