@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+virt_scores.json
+virt_bots.json
