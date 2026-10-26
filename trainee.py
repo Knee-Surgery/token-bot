@@ -32,7 +32,7 @@ for high-scoring coins with steady liquidity. The data decides which, if either,
 partial sell and exit goes to its own Notion database with its own P&L chart. All the main bots' safety rules
 (evo.rug_ok) apply on top of the research, and the trainees keep their own 4 h minimum age (MIN_AGE).
 """
-import asyncio, calendar, logging, math, os, re, time
+import asyncio, calendar, gzip, json, logging, math, os, re, time
 
 import auto
 import evo
@@ -512,11 +512,35 @@ async def manage_position(g, S, tid, T, pc, now):
                                                    "Size (USD)": auto._num(round(P["leg"]["cost"], 4))}})
 
 
+_research: list = []  # this run's finished research results, also kept for good (keep_research)
+_research_file = None
+
+
+def keep_research(rec):
+    """Every finished research result goes to paths/research_<run start UTC>.json.gz (one file per run, never
+    pruned, committed with the price paths), so the analyser (analyser.py) can train on all of them; the state only
+    keeps the last MAX_DONE."""
+    global _research_file
+    _research.append(rec)
+    try:
+        if _research_file is None:
+            _research_file = paths.DIR / f"research_{time.strftime('%Y%m%dT%H%M%S', time.gmtime())}.json.gz"
+        paths.DIR.mkdir(exist_ok=True)
+        tmp = _research_file.with_name(_research_file.name + ".tmp")
+        with gzip.open(tmp, "wt", encoding="utf-8") as fh:
+            json.dump(_research, fh, separators=(",", ":"))
+        tmp.replace(_research_file)
+    except Exception as e:  # recording must never stop the trainees
+        log.warning("research record: %s", e)
+
+
 def finish_shadow(S, mint, sh, now):
     L = lab(S)
     res = [round(leg[5], 1) for leg in sh["legs"]]
-    L["done"].append({"f": vec(sh["f"]), "flags": sh["flags"], "res": res, "ts": round(now), "mint": mint})
+    rec = {"f": vec(sh["f"]), "flags": sh["flags"], "res": res, "ts": round(now), "mint": mint}
+    L["done"].append(rec)
     L["done"] = L["done"][-MAX_DONE:]
+    keep_research(rec)
     B = L["brain"]
     if sh["flags"] and min(res) < -8:
         B["rugs_avoided"] += 1  # a coin the research refused went on to lose more than 8% under every plan
