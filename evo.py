@@ -67,6 +67,9 @@ ACACHE_TTL_MIN = 30
 MONITOR_S = float(os.getenv("EVO_MONITOR_S", "5"))
 
 # hold window: no minimum hold; out by MAX_HOLD_FLAT minutes unless in profit, then never longer than HARD_HOLD
+# time limits on trades are off (owner, 2026-10-26): bots hold until their profit target or lock, a protective floor,
+# the stop-loss, or a crash/liquidity exit. EVO_HOLD_LIMIT=on brings back the limits below
+HOLD_LIMIT = os.getenv("EVO_HOLD_LIMIT", "off").lower() in ("on", "true", "1")
 HARD_HOLD = float(os.getenv("EVO_HARD_HOLD_MIN", "30"))      # only for trades that are in profit
 MAX_HOLD_FLAT = float(os.getenv("EVO_MAX_HOLD_MIN", "15"))   # everything not in profit is out by here at the latest
 # active tokens only: 1h volume at least this multiple of liquidity. On tokens 4h+ old, entries below 0.5x won
@@ -376,7 +379,8 @@ def m31_exits(gn: dict) -> dict:
 # times as it likes (ladder: ps_frac of what is left at +ps_at% gross, then every +ps_step% higher), but it only takes
 # its profit on the rest once the WHOLE trade (partial sells + the rest at the current price) nets MIN_TP_NET% after
 # costs. From then a lock on the whole trade ratchets up (never below MIN_TP_NET%) and closes it if it falls back.
-# Losses are cut at any level: protective floors (below), stop-loss, crash and liquidity exits, 30 min time limit.
+# Losses are cut at any level: protective floors (below), stop-loss, crash and liquidity exits (no time limit since
+# 2026-10-26, see HOLD_LIMIT).
 M33 = os.getenv("EVO_V33", "true").lower() == "true"
 MIN_TP_NET = float(os.getenv("EVO_MIN_TP_PCT", "25"))          # whole-trade net % before profit is taken
 M33_LOCK_START = float(os.getenv("EVO_M33_LOCK_START", "30"))  # whole-trade net % at which the lock switches on
@@ -429,7 +433,7 @@ def m33_step(pos: dict, price: float, liq: float, now: float):
     if pos.get("ps_frac") and gross >= pos.get("ps_next", pos["ps_at"]) and gross > COST_PCT:
         pos["ps_next"] = pos.get("ps_next", pos["ps_at"]) + pos["ps_step"]
         return ("partial", pos["ps_frac"])
-    if (now - pos["ts"]) / 60 >= pos["hold"]:
+    if HOLD_LIMIT and (now - pos["ts"]) / 60 >= pos["hold"]:
         return ("exit", "max hold time")
     return None
 
@@ -457,7 +461,7 @@ def m31_exit(pos: dict, price: float, liq: float, now: float) -> str | None:
         return "rising profit lock"
     if gross <= -pos["sl"]:
         return "stop-loss"
-    if (now - pos["ts"]) / 60 >= pos["hold"]:
+    if HOLD_LIMIT and (now - pos["ts"]) / 60 >= pos["hold"]:
         return "max hold time"
     return None
 
@@ -1377,7 +1381,7 @@ def decide_exit(pos: dict, price: float, liq: float, now: float) -> str | None:
     cap = HARD_HOLD if in_profit else min(pos["hold"], MAX_HOLD_FLAT)  # 5 min unless in profit (then up to 30)
     if pos.get("max_hold"):
         cap = min(cap, pos["max_hold"])  # Sprint trades: short, even in profit
-    if age_min >= cap:
+    if HOLD_LIMIT and age_min >= cap:
         return "max hold time"
     return None
 
