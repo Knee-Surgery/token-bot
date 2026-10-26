@@ -92,7 +92,8 @@ def checks(p: dict, a: dict, track: dict, now: float | None = None) -> list:
     ch = p.get("priceChange") or {}
     up = sum(1 for k in ("h1", "h6") if (ch.get(k) or 0) > 0)
     crashed = (ch.get("h6") or 0) <= -50 or (ch.get("h24") or 0) <= -70
-    add("Trend", "1h and 6h price", f"1h {ch.get('h1') or 0:+g}%, 6h {ch.get('h6') or 0:+g}%",
+    add("Trend", "1h and 6h price", f"1h {ch.get('h1') or 0:+g}%, 6h {ch.get('h6') or 0:+g}%"
+        + (f" (crashed, 24h {ch.get('h24') or 0:+g}%)" if crashed else ""),
         "pass both up, warn one, fail if 6h <=-50% or 24h <=-70%",
         FAIL if crashed else PASS if up == 2 else WARN if up == 1 else FAIL, 1)
     created = p.get("pairCreatedAt")
@@ -114,9 +115,11 @@ DEAL_BREAKER_CAP = 30
 
 
 def deal_breakers(cs: list) -> list:
-    """Facts that outweigh everything else: any failed safety check, liquidity under $30k, or a crashed price."""
+    """Facts that outweigh everything else: any failed safety check, liquidity under $30k, or a crashed price (6h
+    <=-50% or 24h <=-70%). A mild dip with 1h and 6h both down is an ordinary fail, not a deal-breaker."""
     return [f"{label}: {val}" for g, label, val, _, m, _ in cs
-            if m == FAIL and (g == "Safety" or label in ("Liquidity", "1h and 6h price"))]
+            if m == FAIL and (g == "Safety" or label == "Liquidity"
+                              or (label == "1h and 6h price" and "(crashed" in val))]
 
 
 def score(cs: list):
