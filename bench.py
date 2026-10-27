@@ -6,8 +6,8 @@ evo.m31_holders_ok) and exits (evo.m31_exits / evo.m31_exit, partial sell at ps_
 on the same recorded price rows, on every coin that passed the safety rules, with the 30 min per-coin cooldown.
 Per-coin results are independent of money (percent of the stake), so one bot gets many separate results.
 
-Not yet used to retire or breed bots: the scores are stored (v["virt"]) and reported, and switching evolution to
-them is decided on a benchmark first. `python bench.py [hours]` prints the comparison.
+Since 2026-10-27 (owner: "breeding done correctly") evolution uses them: evo.replay_breed retires the weakest bots
+and breeds children of the strongest, judged on the replay in both halves of the recorded period. `python bench.py [hours]` prints the comparison.
 
 Rows from the recorder: [ts, price, liq, m5, h1, h6, b5, s5, vol_h1]. Optimistic like all paper trading: fills at
 the recorded price, one row every ~15 s (exits can slip further between rows than live, which checks every 5 s).
@@ -142,23 +142,34 @@ def replay(gn: dict, P: dict) -> list:
     return out
 
 
-def summary(T: list) -> dict:
+def mid_ts(P: dict) -> float:
+    """Middle of the recorded period: replay results are also given per half, so breeding can ask for both."""
+    ts = [t for c in P.values() for t in (c["rows"][0][0], c["rows"][-1][0])]
+    return (min(ts) + max(ts)) / 2 if ts else 0.0
+
+
+def summary(T: list, mid: float | None = None) -> dict:
     if not T:
         return {"n": 0, "coins": 0, "avg": 0.0, "sum": 0.0, "wins": 0}
     by: dict = {}
     for m, _, pct, _ in T:
         by.setdefault(m, []).append(pct)
-    return {"n": len(T), "coins": len(by), "avg": round(statistics.mean(t[2] for t in T), 2),
-            "sum": round(sum(t[2] for t in T), 1), "wins": sum(1 for t in T if t[2] > 0),
-            "coins_up": sum(1 for x in by.values() if sum(x) > 0)}
+    out = {"n": len(T), "coins": len(by), "avg": round(statistics.mean(t[2] for t in T), 2),
+           "sum": round(sum(t[2] for t in T), 1), "wins": sum(1 for t in T if t[2] > 0),
+           "coins_up": sum(1 for x in by.values() if sum(x) > 0)}
+    if mid:  # earlier and later half of the recorded period
+        for k, H in (("1", [t for t in T if t[1] < mid]), ("2", [t for t in T if t[1] >= mid])):
+            out["n" + k] = len(H)
+            out["avg" + k] = round(statistics.mean(t[2] for t in H), 2) if H else 0.0
+    return out
 
 
 def score_bots(S, hours=VIRT_H) -> dict:
     """Replay every active bot on the last `hours` of recorded paths; store the summary on the bot (v["virt"])."""
     P = prepare(paths.load(hours))
-    now = time.time()
+    now, mid = time.time(), mid_ts(P)
     for v in evo.active(S):
-        v["virt"] = dict(summary(replay(v["genome"], P)), ts=round(now), h=hours)
+        v["virt"] = dict(summary(replay(v["genome"], P), mid), ts=round(now), h=hours)
     return {"coins": len(P), "with_entries": sum(1 for c in P.values() if c["cand"])}
 
 

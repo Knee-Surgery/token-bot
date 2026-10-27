@@ -987,6 +987,70 @@ def founder_report(S, events):
                       + "\nTell me which 2 to breed the next generation from.")
 
 
+# Replay breeding (owner, 2026-10-27: "I want breeding to be done correctly"). Live trades are too few to tell skill
+# from luck (about 2 decisions an hour shared by every bot), and the old rules bred only from "proven" bots (none) or
+# waited for the owner to pick X1 parents (founders whose windows rarely trigger kept that from ever happening). Now
+# each bot is judged on its own rules replayed on every recorded coin of the last 48 h (bench.score_bots: dozens of
+# trades per bot) and must hold up in BOTH halves of that period: its fitness is the worse half's average net % per
+# trade, so one lucky stretch can't make it a parent. Once an hour the BREED_N weakest bots in the bottom half are
+# retired (open trades finish first) and replaced, plus any gap up to the population size, by children of two of the
+# BREED_N strongest: each gene that decides v3.3 trades comes from either parent, then a small mutation. Bots without
+# enough replay trades are neither parents nor retired. Validating and proven bots are never retired by it.
+REPLAY_BREED = os.getenv("EVO_REPLAY_BREED", "on").lower() in ("on", "true", "1")
+BREED_EVERY_S = 3600
+BREED_N = int(os.getenv("EVO_BREED_N", "5"))
+BREED_MIN_N, BREED_MIN_COINS, BREED_MIN_HALF = 20, 8, 8  # replay trades, coins, and trades in each half
+BREED_GENES = ("min_m5", "max_m5", "min_liq", "sl", "ps_at", "ps_step", "ps_frac")  # what v3.3 trades depend on
+VIRT_FRESH_S = 3 * 3600
+
+
+def replay_fitness(v: dict):
+    """Worse half's average net % per replayed trade, or None while there is too little to judge."""
+    x = v.get("virt") or {}
+    if (time.time() - (x.get("ts") or 0) > VIRT_FRESH_S or (x.get("n") or 0) < BREED_MIN_N
+            or (x.get("coins") or 0) < BREED_MIN_COINS or min(x.get("n1") or 0, x.get("n2") or 0) < BREED_MIN_HALF):
+        return None
+    return min(x["avg1"], x["avg2"])
+
+
+def cross_genes(a: dict, b: dict) -> tuple[dict, list]:
+    gn, notes = dict(a["genome"]), []
+    for k in BREED_GENES:
+        if random.random() < 0.5 and k in b["genome"]:
+            gn[k] = b["genome"][k]
+    for k in random.sample(BREED_GENES, random.randint(1, 2)):
+        if k == "ps_frac":
+            gn[k] = random.choice((0.1, 0.25, 0.5))
+        else:
+            gn[k] = float(gn.get(k) or BOUNDS[k][0]) * random.uniform(0.85, 1.15)
+        notes.append(f"mutated {k}")
+    return clamp(gn), notes
+
+
+def replay_breed(S, events):
+    if not REPLAY_BREED or time.time() - S.get("rbreed_ts", 0) < BREED_EVERY_S:
+        return
+    pool = sorted(((f, v) for v in active(S) if (f := replay_fitness(v)) is not None), key=lambda x: -x[0])
+    if len(pool) < 2 * BREED_N:
+        return  # the replay hasn't scored enough bots yet (first minutes of a run, or few recorded coins)
+    S["rbreed_ts"] = time.time()
+    S["x1_picked"] = S.get("x1_picked") or "replay breeding"  # founders are judged like every other bot now
+    parents = [v for _, v in pool[:BREED_N]]
+    weak = [(f, v) for f, v in pool[len(pool) // 2:]
+            if v["status"] == "testing" and not v.get("proven") and v not in parents][-BREED_N:]
+    for f, v in weak:
+        v["status"], v["reason"] = "retired", f"replay breeding: {f:+.1f}%/trade in its worse half (bottom of {len(pool)})"
+    made = []
+    while len(active(S)) < pop_target(S) or len(made) < len(weak):
+        a, b = random.sample(parents, 2)
+        gn, notes = cross_genes(a, b)
+        ch = new_variant(S, gn, max(a["gen"], b["gen"]) + 1, a["id"], [f"bred from {a['id']} x {b['id']} (replay)"] + notes)
+        made.append(ch)
+    pf = ", ".join(f"{v['id']} {f:+.1f}%" for f, v in pool[:BREED_N])
+    events.append(f"🧬 Breeding (replay of {pool[0][1]['virt'].get('h', 48)} h, worse half per bot): parents {pf}. "
+                  f"Retired {', '.join(v['id'] for _, v in weak) or 'none'}; bred {', '.join(v['id'] for v in made)}.")
+
+
 def cut_population(S, events):
     """One-off (owner): keep the best main bots (v2171 and v1844 always) so that, with the line, the population is
     POP_CAP; retire the rest (open trades finish first)."""
@@ -2212,7 +2276,7 @@ async def run(tb, g, loop_seconds: int):
                 if now - last_scan >= 20:
                     await scan(g, S, pc, events); last_scan = now
                 if now - last_goal >= 300:  # consistent-bot milestone and proof test
-                    milestone(S, events); grow(S, events); founder_report(S, events); last_goal = now
+                    milestone(S, events); grow(S, events); founder_report(S, events); replay_breed(S, events); last_goal = now
                 if now - last_save >= 60:  # the file is only committed at the end of the run; once a minute is plenty
                     save(S); last_save = now
                 await flush(tb, g, S, events)
