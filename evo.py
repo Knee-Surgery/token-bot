@@ -592,6 +592,16 @@ def load() -> dict:
     return {"schema": SCHEMA, "variants": {}, "next_id": 1, "halted": False, "acache": {}, "tg_offset": None}
 
 
+EVO_OFF = os.getenv("EVO_OFF", "false").lower() == "true"  # owner switched the bots off: no entries, exits only
+
+
+def open_trades(S: dict) -> int:
+    """Paper trades still open anywhere in the bot (evo bots, trainees, Hermes ideas)."""
+    return (sum(len(v["positions"]) for v in S["variants"].values())
+            + sum(1 for T in (S.get("trainees") or {}).values() if T.get("pos"))
+            + len((S.get("hermes") or {}).get("positions") or {}))
+
+
 def save(S: dict):
     S["acache"] = dict(sorted(S["acache"].items(), key=lambda kv: kv[1]["ts"])[-150:])
     retired = sorted((v for v in S["variants"].values() if v["status"] == "retired"), key=lambda x: x["created"])
@@ -2272,8 +2282,14 @@ async def run(tb, g, loop_seconds: int):
             except Exception as e:
                 log.warning("family tree update failed: %s", e)
         family = asyncio.create_task(_family())  # once per run, in the background (it takes a minute or two)
+        if EVO_OFF and not S.get("off_told"):
+            S["off_told"] = True
+            events.append("🛑 Evo bots switched off. No new trades; open paper trades are closed by their exit rules, "
+                          "then the bot stops. History and code are kept.")
         while True:
             now = time.time()
+            if EVO_OFF:
+                S["halted"] = True  # every run and every cycle: Resume in the menu can't restart a switched-off bot
             try:
                 if now - last_scan >= 20:
                     await scan(g, S, pc, events); last_scan = now
@@ -2291,6 +2307,8 @@ async def run(tb, g, loop_seconds: int):
                 log.exception("cycle error: %s", e)
             if time.time() - start + 10 >= loop_seconds:
                 break
+            if EVO_OFF and not open_trades(S) and time.time() - start > 60:
+                break  # switched off and nothing left to close: end the run (the workflow then stops restarting)
             await asyncio.sleep(10)
     finally:
         for t in (mon, tg, tr, rec, vs, family, cumfix, hi):  # an unfinished correction simply continues next run

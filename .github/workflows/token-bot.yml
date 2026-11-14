@@ -1,8 +1,9 @@
 name: token-bot
 
+# SWITCHED OFF by the owner (2026-11-14): EVO_OFF below is "true" and the 5-minute schedule is removed.
+# The bot closes its open paper trades, then stops restarting itself. To switch it back on: set EVO_OFF to
+# "false", put the schedule back (cron "*/5 * * * *") and start one run by hand.
 on:
-  schedule:
-    - cron: "*/5 * * * *"   # backup only: GitHub often delays or skips these by an hour or more
   workflow_dispatch:
 
 # one run at a time; each run starts the next one when it finishes (last step), so the bot is offline only
@@ -39,6 +40,7 @@ jobs:
           OWNER_CHAT_ID: "8643619357"
           DRY_RUN: "true"
           EVO_MODE: "true"
+          EVO_OFF: "true"
           EVO_POP: "300"
           EVO_START_USD: "10"
           LOOP_SECONDS: "1500"
@@ -64,7 +66,11 @@ jobs:
 
       - name: Start the next run
         if: success()
-        run: gh workflow run token-bot.yml --ref "${{ github.ref_name }}"
+        # switched off: only while paper trades are still open
+        run: |
+          OPEN=$(EVO_OFF=true TELEGRAM_BOT_TOKEN=x python -c "import evo; print(evo.open_trades(evo.load()))")
+          echo "open trades: $OPEN"
+          if [ "$OPEN" != "0" ]; then gh workflow run token-bot.yml --ref "${{ github.ref_name }}"; fi
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
