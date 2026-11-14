@@ -261,6 +261,15 @@ async def handle_update(tb, g, S, pc, u):
             q = u.callback_query
             if q.from_user.id != owner:
                 return
+            if (q.data or "").startswith("h:"):  # Hermes idea buttons (hermes_ideas.py)
+                try:
+                    await q.answer()
+                except Exception:
+                    pass
+                import hermes_ideas
+                await hermes_ideas.on_button(tb, g, S, pc, q)
+                await keep_menu_last(tb, g, S)
+                return
             try:
                 await q.answer()
             except Exception:

@@ -46,6 +46,10 @@ jobs:
           # with take-profits of 45%+ and stop-losses under 8%, about 1 win in 3 is profitable; a high target only
           # rewards luck. Every check also requires net profit.
           EVO_TARGET_WINRATE: "0.35"
+          # Hermes agent ideas (hermes_ideas.py). Empty = off. The ideas repo is the only thing Hermes can write to.
+          HERMES_IDEAS_REPO: ${{ vars.HERMES_IDEAS_REPO }}
+          HERMES_MAX_USD: "1.0"
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Save state
         if: always()
@@ -54,6 +58,7 @@ jobs:
           git config user.email "token-bot@users.noreply.github.com"
           git add -u
           if [ -f evo_state.json ]; then git add evo_state.json; fi
+          if [ -f hermes_results.json ]; then git add hermes_results.json; fi   # what Hermes reads to learn
           if [ -d paths ]; then git add -A paths; fi   # recorded price paths (new files; old ones pruned)
           git diff --cached --quiet || (git commit -m "state" && git pull --rebase && git push)
 

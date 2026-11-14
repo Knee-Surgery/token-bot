@@ -2236,6 +2236,8 @@ async def run(tb, g, loop_seconds: int):
     tr = asyncio.create_task(trainee.loop(g, S, pc))  # the intensely trained bot, beside the main loop
     rec = asyncio.create_task(paths.loop(g, S, pc))   # price paths of every coin that passes the safety rules
     vs = asyncio.create_task(bench.score_in_background(S))  # every bot replayed on the recorded coins (measurement only)
+    import hermes_ideas
+    hi = asyncio.create_task(hermes_ideas.loop(tb, g, S, pc))  # Hermes agent's ideas: checked, approved, fed back
 
     async def _exits():  # exits never wait for a scan
         while True:
@@ -2291,10 +2293,10 @@ async def run(tb, g, loop_seconds: int):
                 break
             await asyncio.sleep(10)
     finally:
-        for t in (mon, tg, tr, rec, vs, family, cumfix):  # an unfinished correction simply continues next run
+        for t in (mon, tg, tr, rec, vs, family, cumfix, hi):  # an unfinished correction simply continues next run
             if t:
                 t.cancel()
-        await asyncio.gather(*(t for t in (mon, tg, tr, rec, vs, family, cumfix) if t), return_exceptions=True)
+        await asyncio.gather(*(t for t in (mon, tg, tr, rec, vs, family, cumfix, hi) if t), return_exceptions=True)
         if _BG:  # let queued Notion rows (entries, exits) finish, bounded well inside the job's 32-min timeout
             await asyncio.wait(list(_BG), timeout=180)
         save(S)
